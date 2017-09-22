@@ -1,0 +1,41 @@
+{
+    "name": "remote-invoke",
+    "version": "0.0.1",
+    "description": "为node提供一种简单调用远端服务的方法",
+    "main": ".bin/index.js",
+    "types": "./bin/index.d.ts",
+    "scripts": {
+        "test": "mocha --compilers ts:ts-node/register,tsx:ts-node/register",
+        "compile": "gulp compile"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/mx601595686/remote-involve.git"
+    },
+    "keywords": [
+        "remote",
+        "invoke"
+    ],
+    "author": "wujingtao",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/mx601595686/remote-involve/issues"
+    },
+    "homepage": "https://github.com/mx601595686/remote-involve#readme",
+    "devDependencies": {
+        "@types/component-emitter": "^1.2.6",
+        "@types/expect.js": "^0.3.29",
+        "@types/mocha": "^2.2.40",
+        "@types/node": "^7.0.13",
+        "expect.js": "^0.3.1",
+        "gulp": "^3.9.1",
+        "gulp-sourcemaps": "^2.4.1",
+        "gulp-typescript": "^3.1.5",
+        "mocha": "^3.2.0",
+        "ts-node": "^3.0.4",
+        "typescript": "^2.5.2"
+    },
+    "dependencies": {
+        "component-emitter": "^1.2.1"
+    }
+}
