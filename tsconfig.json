@@ -5,7 +5,7 @@
         "removeComments": false,
         "preserveConstEnums": false,
         "declaration": true,
-        "experimentalDecorators": true,
+        "experimentalDecorators": false,
         "noEmitOnError": true,
         "strict": true,
         "lib": [
