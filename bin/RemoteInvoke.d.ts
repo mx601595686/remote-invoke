@@ -1,16 +1,18 @@
+import { SendingData } from './common/SendingData';
+import { MessageType } from './common/MessageType';
 import { RemoteInvokeConfig } from './common/RemoteInvokeConfig';
+import { SendingManager } from './SendingManager';
 /**
  *  远程调用控制器
  *
  * @export
  * @class RemoteInvoke
  */
-export declare class RemoteInvoke {
+export declare class RemoteInvoke extends SendingManager {
     private static _messageID;
     private readonly _timeout;
     private readonly _moduleName;
     private readonly _reportErrorStack;
-    private readonly _sendingManager;
     private readonly _exportList;
     private readonly _receiveList;
     private readonly _invokeCallback;
@@ -28,7 +30,7 @@ export declare class RemoteInvoke {
      * @returns {Promise<void>}
      * @memberof RemoteInvoke
      */
-    private _send(receiver, messageName, messageID, type, expire, data, error?);
+    protected _send(receiver: string | undefined, messageName: string | undefined, messageID: number, type: MessageType, expire: number, data: any[], error?: Error): Promise<void>;
     /**
      * 接收到消息
      *
@@ -36,7 +38,7 @@ export declare class RemoteInvoke {
      * @param {SendingData} data
      * @memberof RemoteInvoke
      */
-    private _onMessage(data);
+    protected _onMessage(data: SendingData): void;
     /**
      * 打印错误消息
      *

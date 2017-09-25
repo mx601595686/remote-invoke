@@ -8,7 +8,7 @@ import { SendingManagerConfig } from './common/SendingManagerConfig';
  * @export
  * @class SendingManager
  */
-export class SendingManager {
+export abstract class SendingManager {
 
     private _conPort: { port: ConnectionPort, sending: boolean }[] = []; //注册的连接端口。sending表示当前接口是否正在发送数据
 
@@ -16,14 +16,25 @@ export class SendingManager {
 
     private readonly _loadBalance: boolean; //是否启用负载均衡
 
-    private readonly _onMessage: (data: SendingData) => void;
-
-    constructor(onMessage: (data: SendingData) => void, config: SendingManagerConfig) {
-        this._onMessage = onMessage;
+    constructor(config: SendingManagerConfig) {
         this._loadBalance = config.loadBalance === undefined ? true : config.loadBalance;
     }
 
-    send(data: SendingData): Promise<void> {
+    /**
+     * 子类复写，收到消息的回调
+     * 
+     * @protected
+     * @abstract
+     * @param {SendingData} data 收到的数据
+     * @memberof SendingManager
+     */
+    protected abstract _onMessage(data: SendingData):void;
+
+    /**
+     * 调用绑定的端口发送数据
+     * @param data 要被发送的数据 
+     */
+    protected _sendData(data: SendingData): Promise<void> {
         if (this._conPort.length === 0)
             return Promise.reject(new Error('没有可用的端口来发送消息'));
         else {

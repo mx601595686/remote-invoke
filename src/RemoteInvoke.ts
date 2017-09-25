@@ -11,7 +11,7 @@ import { InvokeCallback } from './common/InvokeCallback';
  * @export
  * @class RemoteInvoke
  */
-export class RemoteInvoke {
+export class RemoteInvoke extends SendingManager {
 
     private static _messageID = 0;  //消息编号从0开始
 
@@ -21,8 +21,6 @@ export class RemoteInvoke {
 
     private readonly _reportErrorStack: boolean;
 
-    private readonly _sendingManager: SendingManager;
-
     private readonly _exportList: Map<string, (any: any[]) => Promise<any>> = new Map();  //对外导出的方法列表
 
     private readonly _receiveList: Map<string, Map<string, (any: any[]) => void>> = new Map();   //key moduleName -> messageName
@@ -30,10 +28,10 @@ export class RemoteInvoke {
     private readonly _invokeCallback: Map<number, InvokeCallback> = new Map();  // 注册调用回调
 
     constructor(config: RemoteInvokeConfig) {
+        super(config);
         this._moduleName = config.moduleName;
         this._reportErrorStack = !!config.reportErrorStack;
         this._timeout = config.timeout === undefined ? 0 : config.timeout < 0 ? 0 : config.timeout;
-        this._sendingManager = new SendingManager(this._onMessage.bind(this), config);
     }
 
     /**
@@ -49,7 +47,7 @@ export class RemoteInvoke {
      * @returns {Promise<void>} 
      * @memberof RemoteInvoke
      */
-    private _send(receiver: string | undefined, messageName: string | undefined, messageID: number, type: MessageType, expire: number, data: any[], error?: Error): Promise<void> {
+    protected _send(receiver: string | undefined, messageName: string | undefined, messageID: number, type: MessageType, expire: number, data: any[], error?: Error): Promise<void> {
 
         const sendingData: SendingData = {
             sender: this._moduleName,
@@ -63,7 +61,7 @@ export class RemoteInvoke {
             error: error === undefined ? undefined : { message: error.message, stack: this._reportErrorStack ? error.stack : undefined }
         };
 
-        return this._sendingManager.send(sendingData);
+        return super._sendData(sendingData);
     }
 
     /**
@@ -73,7 +71,7 @@ export class RemoteInvoke {
      * @param {SendingData} data 
      * @memberof RemoteInvoke
      */
-    private _onMessage(data: SendingData) {
+    protected _onMessage(data: SendingData) {
         switch (data.type) {
             case MessageType.invoke:
                 if (data.receiver !== this._moduleName) {   //确保收件人
@@ -277,5 +275,5 @@ export class RemoteInvoke {
         timeout = timeout === undefined ? this._timeout : timeout < 0 ? 0 : timeout;
         const expire = timeout === 0 ? 0 : (new Date).getTime() + timeout;
         return this._send(undefined, name, RemoteInvoke._messageID++, MessageType.broadcast, expire, data);
-    }
+    } 
 }
