@@ -22,7 +22,8 @@ export interface DataTitle {
  * @interface DataBody
  */
 export type DataBody = [
+    boolean,    //data 是不是一个数组。如果是数组则需要使用binary-ws的BaseSocket.deserialize解序列化一下
+    any,    //data[0]
     SendingData['messageID'],
-    SendingData['data'],
     SendingData['error']
 ]

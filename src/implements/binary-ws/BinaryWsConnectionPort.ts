@@ -1,10 +1,13 @@
+import { ReadyState } from 'binary-ws';
 import { BaseSocket } from 'binary-ws/bin/common/BaseSocket';
 import { ConnectionPort, SendingData } from '../../index';
-import { DataBody, DataTitle } from './DataFormat';
+import { DataTitle, DataBody } from './DataFormat';
 
 /**
- * 这是一个基于binary-ws的ConnectionPort实现
- * 使用时直接将binary-ws的socket传入构造函数即可
+ * 这是一个基于binary-ws的ConnectionPort实现类，
+ * 使用时直接将binary-ws的socket传入构造函数即可。   
+ * 
+ * 注意：如果发送的是一个数组，则数组会自动使用BaseSocket.serialize进行序列化
  * 
  * @export
  * @class BinaryWsConnectionPort
@@ -12,26 +15,30 @@ import { DataBody, DataTitle } from './DataFormat';
  */
 export class BinaryWsConnectionPort implements ConnectionPort {
 
-    constructor(private _socket: BaseSocket) {
-        _socket.on('open', () => {
+    constructor(readonly _socket: BaseSocket) {
+        _socket.once('open', () => {
             this.onOpen && this.onOpen();
         });
 
-        _socket.on('close', () => {
+        _socket.once('close', () => {
             this.onClose && this.onClose();
         });
 
-        _socket.on('message', (name, data) => {
+        _socket.on('message', (name, data: any[]) => {
             if (this.onMessage !== undefined) {
+
                 const title: DataTitle = JSON.parse(name);
-                const body = data as DataBody;
+
                 this.onMessage(Object.assign(title, {
-                    messageID: body[0],
-                    data: body[1],
-                    error: data[2]
+                    error: data[3],
+                    messageID: data[2],
+                    data: data[0] ? BaseSocket.deserialize(data[1]) : data[1];
                 }));
             }
         });
+
+        if (_socket.readyState === ReadyState.OPEN)
+            setTimeout(() => this.onOpen && this.onOpen(), 0);
     }
 
     send(data: SendingData): Promise<void> {
@@ -44,8 +51,15 @@ export class BinaryWsConnectionPort implements ConnectionPort {
             expire: data.expire
         };
 
-        const body: DataBody = [data.messageID, data.data, data.error];
-        return this._socket.send(JSON.stringify(title), body);
+        const dataIsArray = Array.isArray(data.data);
+        const body: DataBody = [
+            dataIsArray,
+            dataIsArray ? BaseSocket.serialize(data.data) : data.data,
+            data.messageID,
+            data.error
+        ];
+
+        return this._socket.send(JSON.stringify(title), body, false);
     }
 
     close(): void {

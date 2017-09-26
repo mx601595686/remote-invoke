@@ -27,14 +27,14 @@ export class RemoteInvoke extends SendingManager {
     /**
      * 对外导出的方法列表
      */
-    readonly exportList: Map<string, (args: any[]) => Promise<any>> = new Map();
+    readonly exportList: Map<string, (arg: any) => Promise<any>> = new Map();
 
     /**
      * 注册的广播接收器    
      * 
      * key：moduleName -> messageName
      */
-    readonly receiveList: Map<string, Map<string, (args: any[]) => void>> = new Map();
+    readonly receiveList: Map<string, Map<string, (arg: any) => void>> = new Map();
 
     constructor(config: RemoteInvokeConfig) {
         super(config);
@@ -52,11 +52,11 @@ export class RemoteInvoke extends SendingManager {
      * @param {string} messageID 消息的编号
      * @param {MessageType} type 消息的类型
      * @param {(number | undefined)} expire 过期时间
-     * @param {any[]} data 要发送的数据
+     * @param {any} data 要发送的数据
      * @returns {Promise<void>} 
      * @memberof RemoteInvoke
      */
-    private _send(receiver: string | undefined, messageName: string | undefined, messageID: number, type: MessageType, expire: number, data: any[], error?: Error): Promise<void> {
+    private _send(receiver: string | undefined, messageName: string | undefined, messageID: number, type: MessageType, expire: number, data: any, error?: Error): Promise<void> {
 
         const sendingData: SendingData = {
             sender: this._moduleName,
@@ -69,18 +69,19 @@ export class RemoteInvoke extends SendingManager {
             data,
             error: error === undefined ? undefined : { message: error.message, stack: this._reportErrorStack ? error.stack : undefined }
         };
-
+        debugger
         return super._sendData(sendingData);
     }
 
     /**
-     * 接收到消息
+     * 接收消息
      * 
      * @protected
-     * @param {SendingData} data 
+     * @param {SendingData} data 收到的数据
      * @memberof RemoteInvoke
      */
     protected _onMessage(data: SendingData) {
+        debugger
         switch (data.type) {
             case MessageType.invoke:
                 if (data.receiver !== this._moduleName) {   //确保收件人
@@ -90,9 +91,9 @@ export class RemoteInvoke extends SendingManager {
                     const send = this._send.bind(this, data.sender, undefined, data.messageID, MessageType.replyInvoke, data.expire);
                     if (func !== undefined) {
                         //确保执行完了也在过期时间之内
-                        func(data.data).then((result) => data.expire === 0 || data.expire > (new Date).getTime() && send([result])).catch(() => { });
+                        func(data.data).then((result) => (data.expire === 0 || data.expire > (new Date).getTime()) && send(result)).catch(() => { });
                     } else {
-                        send([], new Error('调用远端模块的方法不存在或者没有被导出')).catch(() => { });
+                        send(undefined, new Error('调用远端模块的方法不存在或者没有被导出')).catch(() => { });
                     }
                 }
                 break;
@@ -170,7 +171,7 @@ export class RemoteInvoke extends SendingManager {
      * @returns {Function} 
      * @memberof RemoteInvoke
      */
-    export<F extends (args: any[]) => Promise<any>>(name: string, func: F): F {
+    export<F extends (arg: any) => Promise<any>>(name: string, func: F): F {
         if (this.exportList.has(name))
             throw new Error(`方法 '${name}' 不可以重复导出。`);
 
@@ -200,7 +201,7 @@ export class RemoteInvoke extends SendingManager {
      * @returns {Function} 
      * @memberof RemoteInvoke
      */
-    receive<F extends (args: any[]) => void>(sender: string, name: string, func: F): F {
+    receive<F extends (arg: any) => void>(sender: string, name: string, func: F): F {
         let _module = this.receiveList.get(sender);
         if (_module === undefined) {
             _module = new Map();
@@ -234,25 +235,25 @@ export class RemoteInvoke extends SendingManager {
      * 
      * @param {string} target 远端模块的名称
      * @param {string} name 要调用的方法名称
-     * @param {any[]} [data] 要传递的数据
+     * @param {any} [data] 要传递的数据
      * @returns {Promise<any>} 
      * @memberof RemoteInvoke
      */
-    invoke(target: string, name: string, data?: any[]): Promise<any[]>
+    invoke(target: string, name: string, data?: any): Promise<any>
     /**
      * 调用远端模块的方法
      * 
      * @param {string} target 远端模块的名称
      * @param {string} name 要调用的方法名称
-     * @param {any[]} [data] 要传递的数据
+     * @param {any} [data] 要传递的数据
      * @param {number} [timeout] 覆盖默认的调用超时的毫秒数
      * @returns {Promise<any>} 
      * @memberof RemoteInvoke
      */
-    invoke(target: string, name: string, data?: any[], timeout?: number): Promise<any[]>
-    invoke(target: string, name: string, ...args: any[]): Promise<any[]> {
+    invoke(target: string, name: string, data?: any, timeout?: number): Promise<any>
+    invoke(target: string, name: string, ...args: any[]): Promise<any> {
         return new Promise((resolve, reject) => {
-            const data = args[0] || [];
+            const data = args[0];
             const timeout = args[1] === undefined ? this._timeout : args[1] < 0 ? 0 : args[1];
             const expire = timeout === 0 ? 0 : (new Date).getTime() + timeout;
 
@@ -285,13 +286,13 @@ export class RemoteInvoke extends SendingManager {
      * 向外广播消息
      * 
      * @param {string} name 消息的名称
-     * @param {any[]} [data] 要发送的数据
+     * @param {any} [data] 要发送的数据
      * @param {number} [timeout] 指定消息过期的毫秒数
      * 
      * @returns {Promise<any>} 
      * @memberof RemoteInvoke
      */
-    broadcast(name: string, data: any[] = [], timeout?: number): Promise<void> {
+    broadcast(name: string, data?: any, timeout?: number): Promise<void> {
         timeout = timeout === undefined ? this._timeout : timeout < 0 ? 0 : timeout;
         const expire = timeout === 0 ? 0 : (new Date).getTime() + timeout;
         return this._send(undefined, name, RemoteInvoke._messageID++, MessageType.broadcast, expire, data);

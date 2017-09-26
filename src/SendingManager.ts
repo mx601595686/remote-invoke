@@ -77,7 +77,7 @@ export abstract class SendingManager extends Emitter {
             throw new Error('相同的端口不可以重复添加');
 
         connection.onOpen = () => {
-            connection.onMessage = this._onMessage;
+            connection.onMessage = this._onMessage.bind(this);
             connection.onClose = () => this.removeConnectionPort(connection);
             this._conPort.push({ port: connection, sending: false });
             this.emit('addConnectionPort', connection);

@@ -68,10 +68,10 @@ export interface SendingData {
     /**
      * 要发送的数据
      * 
-     * @type {any[]}
+     * @type {any}
      * @memberof SendingData
      */
-    data: any[];
+    data: any;
 
     /**
      * 这个主要是用于被调用者用于向向调用者反馈执行异常
