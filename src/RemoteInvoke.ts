@@ -4,6 +4,7 @@ import { MessageType } from './common/MessageType';
 import { RemoteInvokeConfig } from './common/RemoteInvokeConfig';
 import { SendingManager } from './SendingManager';
 import { InvokeCallback } from './common/InvokeCallback';
+import { ConnectionPort } from './common/ConnectionPort';
 
 /**
  *  远程调用控制器
@@ -21,11 +22,19 @@ export class RemoteInvoke extends SendingManager {
 
     private readonly _reportErrorStack: boolean;
 
-    private readonly _exportList: Map<string, (any: any[]) => Promise<any>> = new Map();  //对外导出的方法列表
-
-    private readonly _receiveList: Map<string, Map<string, (any: any[]) => void>> = new Map();   //key moduleName -> messageName
-
     private readonly _invokeCallback: Map<number, InvokeCallback> = new Map();  // 注册调用回调
+
+    /**
+     * 对外导出的方法列表
+     */
+    readonly exportList: Map<string, (args: any[]) => Promise<any>> = new Map();
+
+    /**
+     * 注册的广播接收器    
+     * 
+     * key：moduleName -> messageName
+     */
+    readonly receiveList: Map<string, Map<string, (args: any[]) => void>> = new Map();
 
     constructor(config: RemoteInvokeConfig) {
         super(config);
@@ -77,13 +86,13 @@ export class RemoteInvoke extends SendingManager {
                 if (data.receiver !== this._moduleName) {   //确保收件人
                     this._errorLog('收到了不属于自己的消息', data);
                 } else if (data.expire === 0 || data.expire > (new Date).getTime()) {   //确保消息还没有过期
-                    const func = this._exportList.get(data.messageName as string);
+                    const func = this.exportList.get(data.messageName as string);
                     const send = this._send.bind(this, data.sender, undefined, data.messageID, MessageType.replyInvoke, data.expire);
                     if (func !== undefined) {
                         //确保执行完了也在过期时间之内
-                        func(data.data).then((result) => data.expire > (new Date).getTime() && send([result])).catch(err => { });
+                        func(data.data).then((result) => data.expire === 0 || data.expire > (new Date).getTime() && send([result])).catch(() => { });
                     } else {
-                        send([], new Error('调用远端模块的方法不存在或者没有被导出'));
+                        send([], new Error('调用远端模块的方法不存在或者没有被导出')).catch(() => { });
                     }
                 }
                 break;
@@ -95,7 +104,7 @@ export class RemoteInvoke extends SendingManager {
                     const ctrl = this._invokeCallback.get(data.messageID);
                     if (ctrl !== undefined) {
                         if (ctrl.targetName !== data.sender) {
-                            ctrl.reject(new Error(`远端调用返回的结果并不是由期望的被调用者返回的！\r\n期望的远端：${ctrl.targetName}   实际返回结果的远端：${data.sender}`));
+                            ctrl.reject(new Error(`远端调用返回的结果并不是由期望的被调用者返回的！\r\n期望的被调用者：${ctrl.targetName}   实际返回结果的被调用者：${data.sender}`));
                         } else {
                             if (data.error === undefined)   //检查远端执行是否出错
                                 ctrl.resolve(data.data);
@@ -116,16 +125,19 @@ export class RemoteInvoke extends SendingManager {
                 } else if (data.messageName === undefined) {
                     this._errorLog('收到了消息名称为空的广播', data);
                 } else {
-                    const _module = this._receiveList.get(data.sender);
-                    if (_module !== undefined) {
-                        const receivers = _module.get(data.messageName);
-                        receivers && receivers(data.data);
+                    const _module = this.receiveList.get(data.sender);
+                    const receivers = _module && _module.get(data.messageName);
+
+                    if (receivers !== undefined) {
+                        receivers(data.data);
+                    } else {
+                        this._errorLog('收到了自己没有注册过的广播', data);
                     }
                 }
                 break;
 
             default:
-                this._errorLog('收到异常消息类型', data);
+                this._errorLog('收到了不存在的消息类型', data);
                 break;
         }
     }
@@ -139,25 +151,31 @@ export class RemoteInvoke extends SendingManager {
      * @memberof RemoteInvoke
      */
     private _errorLog(description: string, data: any) {
-        log.warn
-            .location.yellow
-            .title.yellow
-            .content.yellow(`remote-invoke: 模块：${this._moduleName}`, description, `收到的数据：${data}`);
+        if (this.hasListeners('error')) {   //如果注册了错误监听器就不打印了
+            this.emit('error', new Error(`模块：${this._moduleName} ${description}。收到的数据：${JSON.stringify(data)}`));
+        } else {
+            log.warn
+                .location.yellow
+                .title.yellow
+                .content.yellow
+                .text.yellow(`remote-invoke: 模块：${this._moduleName}`, description, `收到的数据：`, data);
+        }
     }
 
     /**
      * 对外导出方法
      * 
      * @param {string} name 要被导出的方法的名称
-     * @param {(any: any) => Promise<any>} func 要被导出的方法
-     * @returns {(any: any) => Promise<any>} 
+     * @param {(args: any[]) => Promise<any>} func 要被导出的方法
+     * @returns {(args: any[]) => Promise<any>} 
      * @memberof RemoteInvoke
      */
-    export<F extends (any: any[]) => Promise<any>>(name: string, func: F): F {
-        if (this._exportList.has(name))
+    export<F extends (args: any[]) => Promise<any>>(name: string, func: F): F {
+        if (this.exportList.has(name))
             throw new Error(`方法 '${name}' 不可以重复导出。`);
 
-        this._exportList.set(name, func);
+        this.exportList.set(name, func);
+        this.emit('export', name);
         return func;
     }
 
@@ -169,7 +187,8 @@ export class RemoteInvoke extends SendingManager {
      * @memberof RemoteInvoke
      */
     cancelExport(name: string) {
-        this._exportList.delete(name);
+        if (this.exportList.delete(name))
+            this.emit('cancelExport', name);
     }
 
     /**
@@ -182,16 +201,17 @@ export class RemoteInvoke extends SendingManager {
      * @memberof RemoteInvoke
      */
     receive<F extends (any: any[]) => void>(sender: string, name: string, func: F): F {
-        let _module = this._receiveList.get(sender);
+        let _module = this.receiveList.get(sender);
         if (_module === undefined) {
             _module = new Map();
-            this._receiveList.set(sender, _module);
+            this.receiveList.set(sender, _module);
         }
 
         if (_module.has(name))
             throw new Error(`不可以重复注册广播接收器。 '${sender}：${name}'`);
 
         _module.set(name, func);
+        this.emit('receive', name);
         return func;
     }
 
@@ -204,9 +224,9 @@ export class RemoteInvoke extends SendingManager {
      * @memberof RemoteInvoke
      */
     cancelReceive(sender: string, name: string) {
-        const _module = this._receiveList.get(sender);
-        if (_module)
-            _module.delete(name);
+        const _module = this.receiveList.get(sender);
+        if (_module && _module.delete(name))
+            this.emit('cancelReceive', name);
     }
 
     /**
@@ -275,5 +295,52 @@ export class RemoteInvoke extends SendingManager {
         timeout = timeout === undefined ? this._timeout : timeout < 0 ? 0 : timeout;
         const expire = timeout === 0 ? 0 : (new Date).getTime() + timeout;
         return this._send(undefined, name, RemoteInvoke._messageID++, MessageType.broadcast, expire, data);
-    } 
+    }
+
+    // 定义事件
+
+    /**
+     * 注册错误监听器。如果没有注册错误监听器，则自动会将所有错误消息打印出来
+     */
+    on(event: 'error', listener: (err: Error) => any): this;
+    /**
+     * 当有新的方法被导出时触发
+     */
+    on(event: 'export', listener: (name: string) => any): this;
+    /**
+     * 当有方法被取消导出时触发
+     */
+    on(event: 'cancelExport', listener: (name: string) => any): this;
+    /**
+     * 当有新的广播接收器被注册时触发
+     */
+    on(event: 'receive', listener: (name: string) => any): this;
+    /**
+     * 当有广播接收器被删除时触发
+     */
+    on(event: 'cancelReceive', listener: (name: string) => any): this;
+    /**
+     * 注册添加新的连接端口监听器
+     */
+    on(event: 'addConnectionPort', listener: (connection: ConnectionPort) => any): this;
+    /**
+     * 注册删除连接端口监听器
+     */
+    on(event: 'removeConnectionPort', listener: (connection: ConnectionPort) => any): this;
+    on(event: string, listener: Function): this {
+        super.on(event, listener);
+        return this;
+    }
+
+    once(event: 'error', listener: (err: Error) => any): this;
+    once(event: 'export', listener: (name: string) => any): this;
+    once(event: 'cancelExport', listener: (name: string) => any): this;
+    once(event: 'receive', listener: (name: string) => any): this;
+    once(event: 'cancelReceive', listener: (name: string) => any): this;
+    once(event: 'addConnectionPort', listener: (connection: ConnectionPort) => any): this;
+    once(event: 'removeConnectionPort', listener: (connection: ConnectionPort) => any): this;
+    once(event: string, listener: Function): this {
+        super.once(event, listener);
+        return this;
+    }
 }

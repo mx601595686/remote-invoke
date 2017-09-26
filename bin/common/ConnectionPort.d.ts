@@ -14,6 +14,12 @@ export interface ConnectionPort {
      */
     send(data: SendingData): Promise<void>;
     /**
+     * 关闭端口
+     *
+     * @memberof ConnectionPort
+     */
+    close(): void;
+    /**
      * 这个回调方法由RemoteInvoke来进行注册。当收到消息后需要触发该方法
      *
      * @memberof ConnectionPort

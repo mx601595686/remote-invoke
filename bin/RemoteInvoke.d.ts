@@ -2,6 +2,7 @@ import { SendingData } from './common/SendingData';
 import { MessageType } from './common/MessageType';
 import { RemoteInvokeConfig } from './common/RemoteInvokeConfig';
 import { SendingManager } from './SendingManager';
+import { ConnectionPort } from './common/ConnectionPort';
 /**
  *  远程调用控制器
  *
@@ -13,9 +14,17 @@ export declare class RemoteInvoke extends SendingManager {
     private readonly _timeout;
     private readonly _moduleName;
     private readonly _reportErrorStack;
-    private readonly _exportList;
-    private readonly _receiveList;
     private readonly _invokeCallback;
+    /**
+     * 对外导出的方法列表
+     */
+    readonly exportList: Map<string, (args: any[]) => Promise<any>>;
+    /**
+     * 注册的广播接收器
+     *
+     * key：moduleName -> messageName
+     */
+    readonly receiveList: Map<string, Map<string, (args: any[]) => void>>;
     constructor(config: RemoteInvokeConfig);
     /**
      * 发送消息
@@ -52,11 +61,11 @@ export declare class RemoteInvoke extends SendingManager {
      * 对外导出方法
      *
      * @param {string} name 要被导出的方法的名称
-     * @param {(any: any) => Promise<any>} func 要被导出的方法
-     * @returns {(any: any) => Promise<any>}
+     * @param {(args: any[]) => Promise<any>} func 要被导出的方法
+     * @returns {(args: any[]) => Promise<any>}
      * @memberof RemoteInvoke
      */
-    export<F extends (any: any[]) => Promise<any>>(name: string, func: F): F;
+    export<F extends (args: any[]) => Promise<any>>(name: string, func: F): F;
     /**
      * 取消导出方法
      *
@@ -116,4 +125,39 @@ export declare class RemoteInvoke extends SendingManager {
      * @memberof RemoteInvoke
      */
     broadcast(name: string, data?: any[], timeout?: number): Promise<void>;
+    /**
+     * 注册错误监听器。如果没有注册错误监听器，则自动会将所有错误消息打印出来
+     */
+    on(event: 'error', listener: (err: Error) => any): this;
+    /**
+     * 当有新的方法被导出时触发
+     */
+    on(event: 'export', listener: (name: string) => any): this;
+    /**
+     * 当有方法被取消导出时触发
+     */
+    on(event: 'cancelExport', listener: (name: string) => any): this;
+    /**
+     * 当有新的广播接收器被注册时触发
+     */
+    on(event: 'receive', listener: (name: string) => any): this;
+    /**
+     * 当有广播接收器被删除时触发
+     */
+    on(event: 'cancelReceive', listener: (name: string) => any): this;
+    /**
+     * 注册添加新的连接端口监听器
+     */
+    on(event: 'addConnectionPort', listener: (connection: ConnectionPort) => any): this;
+    /**
+     * 注册删除连接端口监听器
+     */
+    on(event: 'removeConnectionPort', listener: (connection: ConnectionPort) => any): this;
+    once(event: 'error', listener: (err: Error) => any): this;
+    once(event: 'export', listener: (name: string) => any): this;
+    once(event: 'cancelExport', listener: (name: string) => any): this;
+    once(event: 'receive', listener: (name: string) => any): this;
+    once(event: 'cancelReceive', listener: (name: string) => any): this;
+    once(event: 'addConnectionPort', listener: (connection: ConnectionPort) => any): this;
+    once(event: 'removeConnectionPort', listener: (connection: ConnectionPort) => any): this;
 }
