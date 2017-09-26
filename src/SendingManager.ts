@@ -11,11 +11,11 @@ import * as Emitter from 'component-emitter';
  */
 export abstract class SendingManager extends Emitter {
 
-    _conPort: { port: ConnectionPort, sending: boolean }[] = []; //注册的连接端口。sending表示当前接口是否正在发送数据
-
     private _portIndex = 0;    //指示使用哪个端口来发送消息
 
     private readonly _loadBalance: boolean; //是否启用负载均衡
+
+    _conPort: { port: ConnectionPort, sending: boolean }[] = []; //注册的连接端口。sending表示当前接口是否正在发送数据
 
     constructor(config: SendingManagerConfig) {
         super();
@@ -100,7 +100,7 @@ export abstract class SendingManager extends Emitter {
     }
 
     /**
-     * 删除并关闭连接端口。删除成功触发removeConnectionPort事件
+     * 删除并关闭连接端口。
      * 
      * @param {ConnectionPort} connection 连接端口
      * @memberof SendingManager

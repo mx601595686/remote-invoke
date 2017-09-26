@@ -1,5 +1,4 @@
 import { SendingData } from './common/SendingData';
-import { MessageType } from './common/MessageType';
 import { RemoteInvokeConfig } from './common/RemoteInvokeConfig';
 import { SendingManager } from './SendingManager';
 import { ConnectionPort } from './common/ConnectionPort';
@@ -39,11 +38,11 @@ export declare class RemoteInvoke extends SendingManager {
      * @returns {Promise<void>}
      * @memberof RemoteInvoke
      */
-    protected _send(receiver: string | undefined, messageName: string | undefined, messageID: number, type: MessageType, expire: number, data: any[], error?: Error): Promise<void>;
+    private _send(receiver, messageName, messageID, type, expire, data, error?);
     /**
      * 接收到消息
      *
-     * @private
+     * @protected
      * @param {SendingData} data
      * @memberof RemoteInvoke
      */
@@ -61,8 +60,8 @@ export declare class RemoteInvoke extends SendingManager {
      * 对外导出方法
      *
      * @param {string} name 要被导出的方法的名称
-     * @param {(args: any[]) => Promise<any>} func 要被导出的方法
-     * @returns {(args: any[]) => Promise<any>}
+     * @param {Function} func 要被导出的方法
+     * @returns {Function}
      * @memberof RemoteInvoke
      */
     export<F extends (args: any[]) => Promise<any>>(name: string, func: F): F;
@@ -83,7 +82,7 @@ export declare class RemoteInvoke extends SendingManager {
      * @returns {Function}
      * @memberof RemoteInvoke
      */
-    receive<F extends (any: any[]) => void>(sender: string, name: string, func: F): F;
+    receive<F extends (args: any[]) => void>(sender: string, name: string, func: F): F;
     /**
      * 删除广播接收器
      *
@@ -109,7 +108,7 @@ export declare class RemoteInvoke extends SendingManager {
      * @param {string} target 远端模块的名称
      * @param {string} name 要调用的方法名称
      * @param {any[]} [data] 要传递的数据
-     * @param {number} [timeout] 调用超时的毫秒数
+     * @param {number} [timeout] 覆盖默认的调用超时的毫秒数
      * @returns {Promise<any>}
      * @memberof RemoteInvoke
      */

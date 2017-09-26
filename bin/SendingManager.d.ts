@@ -9,12 +9,12 @@ import * as Emitter from 'component-emitter';
  * @class SendingManager
  */
 export declare abstract class SendingManager extends Emitter {
+    private _portIndex;
+    private readonly _loadBalance;
     _conPort: {
         port: ConnectionPort;
         sending: boolean;
     }[];
-    private _portIndex;
-    private readonly _loadBalance;
     constructor(config: SendingManagerConfig);
     /**
      * 子类复写，收到消息的回调
@@ -47,7 +47,7 @@ export declare abstract class SendingManager extends Emitter {
      */
     removeConnectionPort(connection: ConnectionPort): void;
     /**
-     * 删除并关闭连接端口。删除成功触发removeConnectionPort事件
+     * 删除并关闭连接端口。
      *
      * @param {ConnectionPort} connection 连接端口
      * @memberof SendingManager
