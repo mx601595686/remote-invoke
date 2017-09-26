@@ -91,7 +91,13 @@ export class RemoteInvoke extends SendingManager {
                     const send = this._send.bind(this, data.sender, undefined, data.messageID, MessageType.replyInvoke, data.expire);
                     if (func !== undefined) {
                         //确保执行完了也在过期时间之内
-                        func(data.data).then((result) => (data.expire === 0 || data.expire > (new Date).getTime()) && send(result)).catch(() => { });
+                        func(data.data)
+                            .then((result) => [result])
+                            .catch((err) => [undefined, err])
+                            .then(result => {
+                                if (data.expire === 0 || data.expire > (new Date).getTime())
+                                    send(...result).catch(() => { });
+                            });
                     } else {
                         send(undefined, new Error('调用远端模块的方法不存在或者没有被导出')).catch(() => { });
                     }

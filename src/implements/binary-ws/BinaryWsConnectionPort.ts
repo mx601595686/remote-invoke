@@ -32,7 +32,7 @@ export class BinaryWsConnectionPort implements ConnectionPort {
                 this.onMessage(Object.assign(title, {
                     error: data[3],
                     messageID: data[2],
-                    data: data[0] ? BaseSocket.deserialize(data[1]) : data[1];
+                    data: data[0] ? BaseSocket.deserialize(data[1]) : data[1]
                 }));
             }
         });
