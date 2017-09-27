@@ -7,6 +7,15 @@
         {
             "type": "node",
             "request": "launch",
+            "name": "浏览器测试",
+            "program": "${workspaceRoot}/node_modules/ts-node/dist/_bin.js",
+            "args": [
+                "${workspaceRoot}/test/browser/server.ts"
+            ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
             "name": "测试调试",
             "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
             "args": [
@@ -17,7 +26,7 @@
                 "--colors",
                 "--compilers",
                 "ts:ts-node/register,tsx:ts-node/register",
-                "${workspaceRoot}/test/index.test.ts"
+                "${workspaceRoot}/test/server.test.ts"
             ],
             "internalConsoleOptions": "openOnSessionStart"
         }

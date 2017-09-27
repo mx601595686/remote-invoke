@@ -113,8 +113,8 @@ describe('测试remote-invoke', function () {
                         s_socket = undefined as any;
                         done();
                     });
-                }, 50);
-            }, 50);
+                }, 100);
+            }, 100);
         });
     });
 
