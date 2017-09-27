@@ -33,7 +33,7 @@ export interface SendingData {
     messageID: number;
 
     /**
-     * 要调用的远端方法的名称，或广播名称
+     * 要调用的远端方法的名称，或广播名称。返回调用请求时为空
      * 
      * @type {string}
      * @memberof SendingData
@@ -58,7 +58,7 @@ export interface SendingData {
 
     /**
      * 这条消息的过期时间，为0则表示永不过期。    
-     * 如果是调用，则过期时间对应的则是从发出到返回的整段时间。
+     * 如果是调用，则过期时间代表的是从发出到返回的整段时间。
      * 
      * @type {number}
      * @memberof SendingData
@@ -76,7 +76,7 @@ export interface SendingData {
     /**
      * 这个主要是用于被调用者用于向向调用者反馈执行异常
      * 
-     * @type {{ message: string, stack?: string }}  属性名称对应与Error
+     * @type {{ message: string, stack?: string }}  属性名称与Error类的属性对应
      * @memberof SendingData
      */
     error?: { message: string, stack?: string }

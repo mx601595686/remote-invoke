@@ -26,14 +26,19 @@ export class BinaryWsConnectionPort implements ConnectionPort {
 
         _socket.on('message', (name, data: any[]) => {
             if (this.onMessage !== undefined) {
-
                 const title: DataTitle = JSON.parse(name);
-
-                this.onMessage(Object.assign(title, {
-                    error: data[3],
+                const message: SendingData = {
+                    sender: title[0],
+                    receiver: title[1],
+                    messageName: title[2],
+                    type: title[3],
+                    sendTime: title[4],
+                    expire: title[5],
+                    data: data[0] ? BaseSocket.deserialize(data[1]) : data[1],
                     messageID: data[2],
-                    data: data[0] ? BaseSocket.deserialize(data[1]) : data[1]
-                }));
+                    error: data[3]
+                };
+                this.onMessage(message);
             }
         });
 
@@ -42,24 +47,38 @@ export class BinaryWsConnectionPort implements ConnectionPort {
     }
 
     send(data: SendingData): Promise<void> {
-        const title: DataTitle = {
-            sender: data.sender,
-            receiver: data.receiver,
-            messageName: data.messageName,
-            type: data.type,
-            sendTime: data.sendTime,
-            expire: data.expire
-        };
+        const now = (new Date).getTime();
+        if (data.expire === 0 || data.expire > now) {
+            const title: DataTitle = [
+                data.sender,
+                data.receiver,
+                data.messageName,
+                data.type,
+                data.sendTime,
+                data.expire
+            ];
 
-        const dataIsArray = Array.isArray(data.data);
-        const body: DataBody = [
-            dataIsArray,
-            dataIsArray ? BaseSocket.serialize(data.data) : data.data,
-            data.messageID,
-            data.error
-        ];
+            const dataIsArray = Array.isArray(data.data);
+            const body: DataBody = [
+                dataIsArray,
+                dataIsArray ? BaseSocket.serialize(data.data) : data.data,
+                data.messageID,
+                data.error
+            ];
 
-        return this._socket.send(JSON.stringify(title), body, false);
+            const sending = this._socket.send(JSON.stringify(title), body, false);
+
+            if (data.expire !== 0) {
+                //超时取消发送
+                const timer = setTimeout(() => {
+                    this._socket.cancel(sending.messageID);
+                }, data.expire - now);
+
+                return sending.then(() => { clearTimeout(timer) }).catch((err) => { clearTimeout(timer); throw err; });
+            } else
+                return sending;
+        } else
+            return Promise.reject(new Error('调用超时'));
     }
 
     close(): void {

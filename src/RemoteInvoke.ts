@@ -18,11 +18,14 @@ export class RemoteInvoke extends SendingManager {
 
     private readonly _timeout: number; //请求超时
 
-    private readonly _moduleName: string;    //模块名称
-
     private readonly _reportErrorStack: boolean;
 
     private readonly _invokeCallback: Map<number, InvokeCallback> = new Map();  // 注册调用回调
+
+    /**
+     * 模块名称
+     */
+    readonly moduleName: string;
 
     /**
      * 对外导出的方法列表
@@ -38,7 +41,7 @@ export class RemoteInvoke extends SendingManager {
 
     constructor(config: RemoteInvokeConfig) {
         super(config);
-        this._moduleName = config.moduleName;
+        this.moduleName = config.moduleName;
         this._reportErrorStack = !!config.reportErrorStack;
         this._timeout = config.timeout === undefined ? 0 : config.timeout < 0 ? 0 : config.timeout;
     }
@@ -59,7 +62,7 @@ export class RemoteInvoke extends SendingManager {
     private _send(receiver: string | undefined, messageName: string | undefined, messageID: number, type: MessageType, expire: number, data: any, error?: Error): Promise<void> {
 
         const sendingData: SendingData = {
-            sender: this._moduleName,
+            sender: this.moduleName,
             receiver,
             messageID,
             messageName,
@@ -84,7 +87,7 @@ export class RemoteInvoke extends SendingManager {
         debugger
         switch (data.type) {
             case MessageType.invoke:
-                if (data.receiver !== this._moduleName) {   //确保收件人
+                if (data.receiver !== this.moduleName) {   //确保收件人
                     this._errorLog('收到了不属于自己的消息', data);
                 } else if (data.expire === 0 || data.expire > (new Date).getTime()) {   //确保消息还没有过期
                     const func = this.exportList.get(data.messageName as string);
@@ -105,7 +108,7 @@ export class RemoteInvoke extends SendingManager {
                 break;
 
             case MessageType.replyInvoke:
-                if (data.receiver !== this._moduleName) {
+                if (data.receiver !== this.moduleName) {
                     this._errorLog('收到了不属于自己的消息', data);
                 } else {
                     const ctrl = this._invokeCallback.get(data.messageID);
@@ -128,7 +131,7 @@ export class RemoteInvoke extends SendingManager {
 
             case MessageType.broadcast:
                 if (data.sender === undefined) {
-                    this._errorLog('收到了没有标注发送者的广播', data);
+                    this._errorLog('收到了没有指明发送者的广播', data);
                 } else if (data.messageName === undefined) {
                     this._errorLog('收到了消息名称为空的广播', data);
                 } else {
@@ -159,13 +162,13 @@ export class RemoteInvoke extends SendingManager {
      */
     private _errorLog(description: string, data: any) {
         if (this.hasListeners('error')) {   //如果注册了错误监听器就不打印了
-            this.emit('error', new Error(`模块：${this._moduleName} ${description}。收到的数据：${JSON.stringify(data)}`));
+            this.emit('error', new Error(`模块：${this.moduleName} ${description}。收到的数据：${JSON.stringify(data)}`));
         } else {
             log.warn
                 .location.yellow
                 .title.yellow
                 .content.yellow
-                .text.yellow(`remote-invoke: 模块：${this._moduleName}`, description, `收到的数据：`, data);
+                .text.yellow(`remote-invoke: 模块：${this.moduleName}`, description, `收到的数据：`, data);
         }
     }
 

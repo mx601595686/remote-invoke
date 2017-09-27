@@ -11,19 +11,22 @@ import { ConnectionPort } from './common/ConnectionPort';
 export declare class RemoteInvoke extends SendingManager {
     private static _messageID;
     private readonly _timeout;
-    private readonly _moduleName;
     private readonly _reportErrorStack;
     private readonly _invokeCallback;
     /**
+     * 模块名称
+     */
+    readonly moduleName: string;
+    /**
      * 对外导出的方法列表
      */
-    readonly exportList: Map<string, (args: any[]) => Promise<any>>;
+    readonly exportList: Map<string, (arg: any) => Promise<any>>;
     /**
      * 注册的广播接收器
      *
      * key：moduleName -> messageName
      */
-    readonly receiveList: Map<string, Map<string, (args: any[]) => void>>;
+    readonly receiveList: Map<string, Map<string, (arg: any) => void>>;
     constructor(config: RemoteInvokeConfig);
     /**
      * 发送消息
@@ -34,16 +37,16 @@ export declare class RemoteInvoke extends SendingManager {
      * @param {string} messageID 消息的编号
      * @param {MessageType} type 消息的类型
      * @param {(number | undefined)} expire 过期时间
-     * @param {any[]} data 要发送的数据
+     * @param {any} data 要发送的数据
      * @returns {Promise<void>}
      * @memberof RemoteInvoke
      */
     private _send(receiver, messageName, messageID, type, expire, data, error?);
     /**
-     * 接收到消息
+     * 接收消息
      *
      * @protected
-     * @param {SendingData} data
+     * @param {SendingData} data 收到的数据
      * @memberof RemoteInvoke
      */
     protected _onMessage(data: SendingData): void;
@@ -64,7 +67,7 @@ export declare class RemoteInvoke extends SendingManager {
      * @returns {Function}
      * @memberof RemoteInvoke
      */
-    export<F extends (args: any[]) => Promise<any>>(name: string, func: F): F;
+    export<F extends (arg: any) => Promise<any>>(name: string, func: F): F;
     /**
      * 取消导出方法
      *
@@ -82,7 +85,7 @@ export declare class RemoteInvoke extends SendingManager {
      * @returns {Function}
      * @memberof RemoteInvoke
      */
-    receive<F extends (args: any[]) => void>(sender: string, name: string, func: F): F;
+    receive<F extends (arg: any) => void>(sender: string, name: string, func: F): F;
     /**
      * 删除广播接收器
      *
@@ -97,33 +100,33 @@ export declare class RemoteInvoke extends SendingManager {
      *
      * @param {string} target 远端模块的名称
      * @param {string} name 要调用的方法名称
-     * @param {any[]} [data] 要传递的数据
+     * @param {any} [data] 要传递的数据
      * @returns {Promise<any>}
      * @memberof RemoteInvoke
      */
-    invoke(target: string, name: string, data?: any[]): Promise<any[]>;
+    invoke(target: string, name: string, data?: any): Promise<any>;
     /**
      * 调用远端模块的方法
      *
      * @param {string} target 远端模块的名称
      * @param {string} name 要调用的方法名称
-     * @param {any[]} [data] 要传递的数据
+     * @param {any} [data] 要传递的数据
      * @param {number} [timeout] 覆盖默认的调用超时的毫秒数
      * @returns {Promise<any>}
      * @memberof RemoteInvoke
      */
-    invoke(target: string, name: string, data?: any[], timeout?: number): Promise<any[]>;
+    invoke(target: string, name: string, data?: any, timeout?: number): Promise<any>;
     /**
      * 向外广播消息
      *
      * @param {string} name 消息的名称
-     * @param {any[]} [data] 要发送的数据
+     * @param {any} [data] 要发送的数据
      * @param {number} [timeout] 指定消息过期的毫秒数
      *
      * @returns {Promise<any>}
      * @memberof RemoteInvoke
      */
-    broadcast(name: string, data?: any[], timeout?: number): Promise<void>;
+    broadcast(name: string, data?: any, timeout?: number): Promise<void>;
     /**
      * 注册错误监听器。如果没有注册错误监听器，则自动会将所有错误消息打印出来
      */

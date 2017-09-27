@@ -67,7 +67,7 @@ export abstract class SendingManager extends Emitter {
 
     /**
      * 添加连接端口。可以添加多个端口，这样流量可以自动分担到每个端口上。如果某个端口被关闭，则它将自动被移除。     
-     * 注意：只有当端口连接打开之后才会触发addConnectionPort事件
+     * 注意：只有当添加的端口连接打开之后才会触发addConnectionPort事件
      * 
      * @param {ConnectionPort} connection 连接端口
      * @memberof RemoteInvoke

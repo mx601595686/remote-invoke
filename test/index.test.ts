@@ -60,6 +60,7 @@ describe('测试remote-invoke', function () {
     });
 
     it('属性检查', function () {
+        expect(c_rv.moduleName).to.be('client');
         expect(c_rv._conPort.length).to.be(1);
         expect(c_rv._conPort[0].sending).to.be(false);
         expect(c_rv.exportList.size).to.be(0);
@@ -92,6 +93,7 @@ describe('测试remote-invoke', function () {
             c_rv.addConnectionPort(socket2);
             c_rv.addConnectionPort(socket3);
             setTimeout(function () {
+                expect(c_rv.addConnectionPort.bind(c_rv)).withArgs(socket3).throwException();
                 expect(c_rv._conPort.length).to.be(4);
                 c_rv.removeConnectionPort(socket3);
                 expect(c_rv._conPort.length).to.be(3);
@@ -147,12 +149,15 @@ describe('测试remote-invoke', function () {
         });
     });
 
-    it.only('测试调用超时')
+    it('测试调用超时')
 
-    it('测试收到不是自己的消息', function () {
+    it('测试调用收到不是自己的消息', function () {
 
-    })
+    });
 
+    it('测试广播收到自己没有订阅过的消息')
+
+    it('测试未添加端口发送数据')
 
     it('测试负载均衡(轮流调用端口发送)')
 

@@ -34,5 +34,5 @@ export interface InvokeCallback {
      * 
      * @memberof InvokeCallback
      */
-    resolve: (data: any[]) => void;
+    resolve: (data: any) => void;
 }
