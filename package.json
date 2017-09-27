@@ -1,6 +1,6 @@
 {
   "name": "remote-invoke",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "为node提供一种简单调用远端服务的方法",
   "main": ".bin/index.js",
   "types": "./bin/index.d.ts",
@@ -38,6 +38,6 @@
   "dependencies": {
     "@types/component-emitter": "^1.2.6",
     "component-emitter": "^1.2.1",
-    "log-formatter": "^0.1.1"
+    "log-formatter": "^0.1.3"
   }
 }

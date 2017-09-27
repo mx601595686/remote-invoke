@@ -72,7 +72,7 @@ export class RemoteInvoke extends SendingManager {
             data,
             error: error === undefined ? undefined : { message: error.message, stack: this._reportErrorStack ? error.stack : undefined }
         };
-        debugger
+        
         return super._sendData(sendingData);
     }
 
@@ -84,7 +84,7 @@ export class RemoteInvoke extends SendingManager {
      * @memberof RemoteInvoke
      */
     protected _onMessage(data: SendingData) {
-        debugger
+        
         switch (data.type) {
             case MessageType.invoke:
                 if (data.receiver !== this.moduleName) {   //确保收件人
@@ -165,7 +165,7 @@ export class RemoteInvoke extends SendingManager {
             this.emit('error', new Error(`模块：${this.moduleName} ${description}。收到的数据：${JSON.stringify(data)}`));
         } else {
             log.warn
-                .location.yellow
+                .location.white
                 .title.yellow
                 .content.yellow
                 .text.yellow(`remote-invoke: 模块：${this.moduleName}`, description, `收到的数据：`, data);
