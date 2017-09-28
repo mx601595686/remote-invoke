@@ -72,7 +72,7 @@ export class RemoteInvoke extends SendingManager {
             data,
             error: error === undefined ? undefined : { message: error.message, stack: this._reportErrorStack ? error.stack : undefined }
         };
-        
+
         return super._sendData(sendingData);
     }
 
@@ -84,7 +84,7 @@ export class RemoteInvoke extends SendingManager {
      * @memberof RemoteInvoke
      */
     protected _onMessage(data: SendingData) {
-        
+
         switch (data.type) {
             case MessageType.invoke:
                 if (data.receiver !== this.moduleName) {   //确保收件人
@@ -134,7 +134,7 @@ export class RemoteInvoke extends SendingManager {
                     this._errorLog('收到了没有指明发送者的广播', data);
                 } else if (data.messageName === undefined) {
                     this._errorLog('收到了消息名称为空的广播', data);
-                } else {
+                } else if (data.expire === 0 || data.expire > (new Date).getTime()) {
                     const _module = this.receiveList.get(data.sender);
                     const receivers = _module && _module.get(data.messageName);
 

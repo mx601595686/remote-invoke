@@ -107,7 +107,6 @@ export abstract class SendingManager extends Emitter {
      */
     removeAndCloseConnectionPort(connection: ConnectionPort) {
         connection.close();
-        this.removeConnectionPort(connection);
     }
 
     /**

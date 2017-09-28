@@ -78,7 +78,7 @@ export class BinaryWsConnectionPort implements ConnectionPort {
             } else
                 return sending;
         } else
-            return Promise.reject(new Error('调用超时'));
+            return Promise.reject(new Error('发送超时'));
     }
 
     close(): void {

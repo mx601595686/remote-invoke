@@ -33,14 +33,13 @@ describe('测试remote-invoke', function () {
             s_socket.on('error', (err) => console.error('测试服务器端接口错误：', err));
             s_rv = new RemoteInvoke({ moduleName: 'server', reportErrorStack: true });
             s_rv.addConnectionPort(new BinaryWsConnectionPort(s_socket));
-
-            setTimeout(() => done(), 100);  //避免还没有触发open事件就接着向下执行了
         });
 
         c_socket = new Socket('ws://localhost:8080');
         c_socket.on('error', (err) => console.error('测试客户端端接口错误：', err));
         c_rv = new RemoteInvoke({ moduleName: 'client', timeout: 1000 });
         c_rv.addConnectionPort(new BinaryWsConnectionPort(c_socket));
+        c_rv.once('addConnectionPort', () => done());
     });
 
     afterEach(function (done) {
@@ -91,30 +90,37 @@ describe('测试remote-invoke', function () {
             const socket2 = new BinaryWsConnectionPort(new Socket('ws://localhost:8080'));
             const socket3 = new BinaryWsConnectionPort(new Socket('ws://localhost:8080'));
             c_rv.addConnectionPort(new BinaryWsConnectionPort(socket1));
-            c_rv.addConnectionPort(socket2);
-            c_rv.addConnectionPort(socket3);
-            setTimeout(function () {
-                expect(c_rv.addConnectionPort.bind(c_rv)).withArgs(socket3).throwException();
-                expect(c_rv._conPort.length).to.be(4);
-                c_rv.removeConnectionPort(socket3);
-                expect(c_rv._conPort.length).to.be(3);
-                expect(socket3._socket.readyState).to.be(ReadyState.OPEN);
-                socket3.close();
+            c_rv.once('addConnectionPort', () => {
+                expect(c_rv._conPort.length).to.be(2);
+                c_rv.addConnectionPort(socket2);
+                c_rv.once('addConnectionPort', () => {
+                    expect(c_rv._conPort.length).to.be(3);
+                    c_rv.addConnectionPort(socket3);
+                    c_rv.once('addConnectionPort', () => {
+                        expect(c_rv._conPort.length).to.be(4);
+                        expect(c_rv.addConnectionPort.bind(c_rv)).withArgs(socket3).throwException();
+                        expect(c_rv._conPort.length).to.be(4);
+                        c_rv.removeConnectionPort(socket3);
+                        expect(c_rv._conPort.length).to.be(3);
+                        expect(socket3._socket.readyState).to.be(ReadyState.OPEN);
+                        socket3.close();
+                        c_rv.removeAndCloseConnectionPort(socket2);
+                        c_rv.once('removeConnectionPort', () => {
+                            expect(socket3._socket.readyState).to.be(ReadyState.CLOSED);
+                            expect(socket2._socket.readyState).to.be(ReadyState.CLOSED);
+                            expect(c_rv._conPort.length).to.be(2);
 
-                c_rv.removeAndCloseConnectionPort(socket2);
-                setTimeout(function () {
-                    expect(socket3._socket.readyState).to.be(ReadyState.CLOSED);
-                    expect(socket2._socket.readyState).to.be(ReadyState.CLOSED);
-                    expect(c_rv._conPort.length).to.be(2);
-
-                    c_rv.removeAndCloseAllConnectionPort();
-                    socket1.on('close', () => {
-                        expect(c_rv._conPort.length).to.be(0);
-                        s_socket = undefined as any;
-                        done();
+                            c_rv.removeAndCloseAllConnectionPort();
+                            socket1.on('close', () => {
+                                expect(c_rv._conPort.length).to.be(0);
+                                s_socket = undefined as any;
+                                done();
+                            });
+                        });
                     });
-                }, 100);
-            }, 100);
+                });
+            });
+
         });
     });
 
@@ -198,7 +204,7 @@ describe('测试remote-invoke', function () {
 
         c_rv.invoke('server', 'ping')
             .then(() => done('代码逻辑存在问题，不可能执行到这'))
-            .catch(() => done());
+            .catch((err) => { expect(err).to.be.a(Error); done(); });
     });
 
     it('测试发送广播', function (done) {
