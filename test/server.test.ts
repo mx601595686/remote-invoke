@@ -110,17 +110,15 @@ describe('测试remote-invoke', function () {
                             expect(socket2._socket.readyState).to.be(ReadyState.CLOSED);
                             expect(c_rv._conPort.length).to.be(2);
 
-                            c_rv.removeAndCloseAllConnectionPort();
-                            socket1.on('close', () => {
-                                expect(c_rv._conPort.length).to.be(0);
-                                s_socket = undefined as any;
+                            socket1.close();
+                            c_rv.once('removeConnectionPort', () => {
+                                expect(c_rv._conPort.length).to.be(1);
                                 done();
                             });
                         });
                     });
                 });
             });
-
         });
     });
 
