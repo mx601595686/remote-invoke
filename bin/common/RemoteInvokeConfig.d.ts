@@ -15,7 +15,7 @@ export interface RemoteInvokeConfig extends SendingManagerConfig {
      */
     moduleName: string;
     /**
-     * 请求超时。如果0则表示不限制请求超时。默认0
+     * 设置全局的请求超时。如果0则表示不限制请求超时。默认0
      *
      * @type {number}
      * @memberof RemoteInvokeConfig
@@ -28,4 +28,11 @@ export interface RemoteInvokeConfig extends SendingManagerConfig {
      * @memberof RemoteInvokeConfig
      */
     reportErrorStack?: boolean;
+    /**
+     * 设置全局的调用失败自动重试次数（默认0，不重试）
+     *
+     * @type {number}
+     * @memberof RemoteInvokeConfig
+     */
+    invokeFailedRetry?: number;
 }

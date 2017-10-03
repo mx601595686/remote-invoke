@@ -22,6 +22,8 @@ export class RemoteInvoke extends SendingManager {
 
     private readonly _invokeCallback: Map<number, InvokeCallback> = new Map();  // 注册调用回调
 
+    private readonly _invokeFailedRetry: number;
+
     /**
      * 模块名称
      */
@@ -44,6 +46,7 @@ export class RemoteInvoke extends SendingManager {
         this.moduleName = config.moduleName;
         this._reportErrorStack = !!config.reportErrorStack;
         this._timeout = config.timeout === undefined ? 0 : config.timeout < 0 ? 0 : config.timeout;
+        this._invokeFailedRetry = config.invokeFailedRetry === undefined ? 0 : config.invokeFailedRetry < 0 ? 0 : config.invokeFailedRetry;
     }
 
     /**
@@ -260,10 +263,23 @@ export class RemoteInvoke extends SendingManager {
      * @memberof RemoteInvoke
      */
     invoke(target: string, name: string, data?: any, timeout?: number): Promise<any>
+    /**
+     * 调用远端模块的方法
+     * 
+     * @param {string} target 远端模块的名称
+     * @param {string} name 要调用的方法名称
+     * @param {any} [data] 要传递的数据
+     * @param {number} [timeout] 覆盖默认的调用超时的毫秒数
+     * @param {number} [invokeFailedRetry] 调用失败自动重试次数（默认0，不重试）
+     * @returns {Promise<any>} 
+     * @memberof RemoteInvoke
+     */
+    invoke(target: string, name: string, data?: any, timeout?: number, invokeFailedRetry?: number): Promise<any>
     invoke(target: string, name: string, ...args: any[]): Promise<any> {
         return new Promise((resolve, reject) => {
             const data = args[0];
             const timeout = args[1] === undefined ? this._timeout : args[1] < 0 ? 0 : args[1];
+            const invokeFailedRetry = args[2] === undefined ? this._invokeFailedRetry : args[2] < 0 ? 0 : args[2];
             const expire = timeout === 0 ? 0 : (new Date).getTime() + timeout;
 
             const control: InvokeCallback = {
@@ -275,7 +291,11 @@ export class RemoteInvoke extends SendingManager {
                     this._invokeCallback.delete(control.messageID);
                 },
                 reject: (err) => {
-                    reject(err);
+                    if (invokeFailedRetry > 0)  //如果还需要重试
+                        this.invoke(target, name, data, timeout, invokeFailedRetry - 1).then(resolve).catch(reject);
+                    else
+                        reject(err);
+
                     clearTimeout(timer);
                     this._invokeCallback.delete(control.messageID);
                 }

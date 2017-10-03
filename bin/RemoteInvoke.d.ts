@@ -13,6 +13,7 @@ export declare class RemoteInvoke extends SendingManager {
     private readonly _timeout;
     private readonly _reportErrorStack;
     private readonly _invokeCallback;
+    private readonly _invokeFailedRetry;
     /**
      * 模块名称
      */
@@ -116,6 +117,18 @@ export declare class RemoteInvoke extends SendingManager {
      * @memberof RemoteInvoke
      */
     invoke(target: string, name: string, data?: any, timeout?: number): Promise<any>;
+    /**
+     * 调用远端模块的方法
+     *
+     * @param {string} target 远端模块的名称
+     * @param {string} name 要调用的方法名称
+     * @param {any} [data] 要传递的数据
+     * @param {number} [timeout] 覆盖默认的调用超时的毫秒数
+     * @param {number} [invokeFailedRetry] 调用失败自动重试次数（默认0，不重试）
+     * @returns {Promise<any>}
+     * @memberof RemoteInvoke
+     */
+    invoke(target: string, name: string, data?: any, timeout?: number, invokeFailedRetry?: number): Promise<any>;
     /**
      * 向外广播消息
      *

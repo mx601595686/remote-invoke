@@ -104,18 +104,20 @@ describe('测试remote-invoke', function () {
                         expect(c_rv._conPort.length).to.be(3);
                         expect(socket3._socket.readyState).to.be(ReadyState.OPEN);
                         socket3.close();
-                        c_rv.removeAndCloseConnectionPort(socket2);
-                        c_rv.once('removeConnectionPort', () => {
+                        socket3.onClose = () => {
                             expect(socket3._socket.readyState).to.be(ReadyState.CLOSED);
-                            expect(socket2._socket.readyState).to.be(ReadyState.CLOSED);
-                            expect(c_rv._conPort.length).to.be(2);
-
-                            socket1.close();
+                            c_rv.removeAndCloseConnectionPort(socket2);
                             c_rv.once('removeConnectionPort', () => {
-                                expect(c_rv._conPort.length).to.be(1);
-                                done();
+                                expect(socket2._socket.readyState).to.be(ReadyState.CLOSED);
+                                expect(c_rv._conPort.length).to.be(2);
+    
+                                socket1.close();
+                                c_rv.once('removeConnectionPort', () => {
+                                    expect(c_rv._conPort.length).to.be(1);
+                                    done();
+                                });
                             });
-                        });
+                        };
                     });
                 });
             });
@@ -194,6 +196,27 @@ describe('测试remote-invoke', function () {
                 expect(s_err).to.be.ok();
                 done();
             });
+    });
+
+    it('测试调用失败重试', function (done) {
+        let retryIndex = 0;
+
+        s_rv.export('error', async (arg) => {
+            if (++retryIndex < 3) {
+                const err = new Error('test');
+                err.stack = retryIndex.toString();
+                throw err;
+            }
+            return retryIndex;
+        });
+
+        c_rv.invoke('server', 'error', 123, undefined, 3)
+            .then((arg) => {
+                expect(retryIndex).to.be(3);
+                expect(arg).to.be(3);
+                done();
+            })
+            .catch(() => done('代码逻辑存在问题，不可能执行到这'));
     });
 
     it('测试无可用端口发送数据', function (done) {
