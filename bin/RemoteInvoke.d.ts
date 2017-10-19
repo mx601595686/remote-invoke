@@ -39,6 +39,7 @@ export declare class RemoteInvoke extends SendingManager {
      * @param {MessageType} type 消息的类型
      * @param {(number | undefined)} expire 过期时间
      * @param {any} data 要发送的数据
+     * @param {Error} [error] 要反馈给调用则的错误信息
      * @returns {Promise<void>}
      * @memberof RemoteInvoke
      */

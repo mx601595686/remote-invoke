@@ -59,6 +59,7 @@ export class RemoteInvoke extends SendingManager {
      * @param {MessageType} type 消息的类型
      * @param {(number | undefined)} expire 过期时间
      * @param {any} data 要发送的数据
+     * @param {Error} [error] 要反馈给调用则的错误信息
      * @returns {Promise<void>} 
      * @memberof RemoteInvoke
      */
@@ -96,11 +97,10 @@ export class RemoteInvoke extends SendingManager {
                     const func = this.exportList.get(data.messageName as string);
                     const send = this._send.bind(this, data.sender, undefined, data.messageID, MessageType.replyInvoke, data.expire);
                     if (func !== undefined) {
-                        //确保执行完了也在过期时间之内
                         func(data.data)
                             .then((result) => [result])
                             .catch((err) => [undefined, err])
-                            .then(result => {
+                            .then(result => {   //确保执行完了也在过期时间之内
                                 if (data.expire === 0 || data.expire > (new Date).getTime())
                                     send(...result).catch(() => { });
                             });
@@ -119,11 +119,11 @@ export class RemoteInvoke extends SendingManager {
                         if (ctrl.targetName !== data.sender) {
                             ctrl.reject(new Error(`远端调用返回的结果并不是由期望的被调用者返回的！\r\n期望的被调用者：${ctrl.targetName}   实际返回结果的被调用者：${data.sender}`));
                         } else {
-                            if (data.error === undefined)   //检查远端执行是否出错
+                            if (data.error == null)   //检查远端执行是否出错
                                 ctrl.resolve(data.data);
                             else {
                                 const err = new Error(data.error.message);
-                                if (data.error.stack !== undefined)
+                                if (data.error.stack != null)
                                     err.stack = data.error.stack;
                                 ctrl.reject(err);
                             }
@@ -135,7 +135,7 @@ export class RemoteInvoke extends SendingManager {
             case MessageType.broadcast:
                 if (data.sender === undefined) {
                     this._errorLog('收到了没有指明发送者的广播', data);
-                } else if (data.messageName === undefined) {
+                } else if (data.messageName == null) {
                     this._errorLog('收到了消息名称为空的广播', data);
                 } else if (data.expire === 0 || data.expire > (new Date).getTime()) {
                     const _module = this.receiveList.get(data.sender);
