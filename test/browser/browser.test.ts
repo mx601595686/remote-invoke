@@ -99,17 +99,15 @@ describe('测试remote-invoke', function () {
         c_rv.export('return', async (arg: any) => arg);
 
         expect(await c_rv.invoke('client', 'ping')).to.be('pong');
-        const result = await c_rv.invoke('client', 'return', [0, 1.1, '2', true, false, null, undefined, { a: 123 }, [1, 2, 3], Buffer.from('123')]);
+        const result = await c_rv.invoke('client', 'return', [0, 1.1, '2', true, false, null, { a: 123 }, [1, 2, 3]]);
         expect(result[0]).to.be(0);
         expect(result[1]).to.be(1.1);
         expect(result[2]).to.be('2');
         expect(result[3]).to.be(true);
         expect(result[4]).to.be(false);
         expect(result[5]).to.be(null);
-        expect(result[6]).to.be(undefined);
-        expect(result[7]).to.be.eql({ a: 123 });
-        expect(result[8]).to.be.eql([1, 2, 3]);
-        expect(Buffer.from('123').equals(result[9])).to.be.ok();
+        expect(result[6]).to.be.eql({ a: 123 });
+        expect(result[7]).to.be.eql([1, 2, 3]);
     });
 
     it('测试远程调用错误返回异常', function (done) {
@@ -212,15 +210,13 @@ describe('测试remote-invoke', function () {
             expect(result[3]).to.be(true);
             expect(result[4]).to.be(false);
             expect(result[5]).to.be(null);
-            expect(result[6]).to.be(undefined);
-            expect(result[7]).to.be.eql({ a: 123 });
-            expect(result[8]).to.be.eql([1, 2, 3]);
-            expect(Buffer.from('123').equals(result[9])).to.be.ok();
+            expect(result[6]).to.be.eql({ a: 123 });
+            expect(result[7]).to.be.eql([1, 2, 3]);
             done();
         });
 
         c_rv.broadcast('test1');
-        c_rv.broadcast('test2', [0, 1.1, '2', true, false, null, undefined, { a: 123 }, [1, 2, 3], Buffer.from('123')]);
+        c_rv.broadcast('test2', [0, 1.1, '2', true, false, null, { a: 123 }, [1, 2, 3]]);
     });
 
     it('测试广播收到自己没有订阅过的消息', function (done) {
