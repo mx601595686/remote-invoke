@@ -6,4 +6,4 @@ export declare type DataTitle = [SendingData['sender'], SendingData['receiver'],
 /**
  * 数据body
  */
-export declare type DataBody = [boolean, any, SendingData['messageID'], SendingData['error']];
+export declare type DataBody = [SendingData['data'], SendingData['messageID'], SendingData['error']];

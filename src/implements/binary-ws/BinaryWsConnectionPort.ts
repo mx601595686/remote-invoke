@@ -7,8 +7,6 @@ import { DataTitle, DataBody } from './DataFormat';
  * 这是一个基于binary-ws的ConnectionPort实现类，
  * 使用时直接将binary-ws的socket传入构造函数即可。   
  * 
- * 注意：如果发送的是一个数组，则数组会自动使用BaseSocket.serialize进行序列化
- * 
  * @export
  * @class BinaryWsConnectionPort
  * @implements {ConnectionPort}
@@ -24,9 +22,8 @@ export class BinaryWsConnectionPort implements ConnectionPort {
             this.onClose && this.onClose();
         });
 
-        _socket.on('message', (name, data: any[]) => {
+        _socket.on('message', (title: any, data: any[]) => {
             if (this.onMessage !== undefined) {
-                const title: DataTitle = JSON.parse(name);
                 const message: SendingData = {
                     sender: title[0],
                     receiver: title[1],
@@ -34,9 +31,9 @@ export class BinaryWsConnectionPort implements ConnectionPort {
                     type: title[3],
                     sendTime: title[4],
                     expire: title[5],
-                    data: data[0] ? BaseSocket.deserialize(data[1]) : data[1],
-                    messageID: data[2],
-                    error: data[3]
+                    data: data[0],
+                    messageID: data[1],
+                    error: data[2]
                 };
                 this.onMessage(message);
             }
@@ -58,15 +55,13 @@ export class BinaryWsConnectionPort implements ConnectionPort {
                 data.expire
             ];
 
-            const dataIsArray = Array.isArray(data.data);
             const body: DataBody = [
-                dataIsArray,
-                dataIsArray ? BaseSocket.serialize(data.data) : data.data,
+                data.data,
                 data.messageID,
                 data.error
             ];
 
-            const sending = this._socket.send(JSON.stringify(title), body, false);
+            const sending = this._socket.send(title, body, false);
 
             if (data.expire !== 0) {
                 //超时取消发送
