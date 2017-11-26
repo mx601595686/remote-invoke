@@ -1,0 +1,18 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+/**
+ * 所有消息的基类
+ */
+class MessageData {
+    /**
+     * 解包消息
+     * @param header 消息头部
+     * @param body 消息body
+     */
+    static unpack(header, body) {
+        throw new Error(`${this.name} 未实现unpack方法`);
+    }
+}
+exports.MessageData = MessageData;
+
+//# sourceMappingURL=data:application/json;charset=utf8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbImNsYXNzZXMvTWVzc2FnZURhdGEudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6Ijs7QUFFQTs7R0FFRztBQUNIO0lBaUJJOzs7O09BSUc7SUFDSCxNQUFNLENBQUMsTUFBTSxDQUFDLE1BQWMsRUFBRSxJQUFZO1FBQ3RDLE1BQU0sSUFBSSxLQUFLLENBQUMsR0FBRyxJQUFJLENBQUMsSUFBSSxjQUFjLENBQUMsQ0FBQztJQUNoRCxDQUFDO0NBQ0o7QUF6QkQsa0NBeUJDIiwiZmlsZSI6ImNsYXNzZXMvTWVzc2FnZURhdGEuanMiLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgeyBNZXNzYWdlVHlwZSB9IGZyb20gXCIuLi9pbnRlcmZhY2VzL01lc3NhZ2VUeXBlXCI7XHJcblxyXG4vKipcclxuICog5omA5pyJ5raI5oGv55qE5Z+657G7XHJcbiAqL1xyXG5leHBvcnQgYWJzdHJhY3QgY2xhc3MgTWVzc2FnZURhdGEge1xyXG5cclxuICAgIC8qKlxyXG4gICAgICog5raI5oGv55qE57G75Z6LXHJcbiAgICAgKi9cclxuICAgIHJlYWRvbmx5IHR5cGU6IE1lc3NhZ2VUeXBlO1xyXG5cclxuICAgIC8qKlxyXG4gICAgICog6K+l5p2h5raI5oGv55qE57yW5Y+3XHJcbiAgICAgKi9cclxuICAgIHJlYWRvbmx5IG1lc3NhZ2VJRDogbnVtYmVyO1xyXG5cclxuICAgIC8qKlxyXG4gICAgICog5omT5YyF5raI5oGv77yM6L+U5Zue5raI5oGv5aS06YOo5Lul5Y+K5raI5oGvYm9keVxyXG4gICAgICovXHJcbiAgICBhYnN0cmFjdCBwYWNrKCk6IFtzdHJpbmcsIEJ1ZmZlcl07XHJcblxyXG4gICAgLyoqXHJcbiAgICAgKiDop6PljIXmtojmga9cclxuICAgICAqIEBwYXJhbSBoZWFkZXIg5raI5oGv5aS06YOoXHJcbiAgICAgKiBAcGFyYW0gYm9keSDmtojmga9ib2R5XHJcbiAgICAgKi9cclxuICAgIHN0YXRpYyB1bnBhY2soaGVhZGVyOiBzdHJpbmcsIGJvZHk6IEJ1ZmZlcik6IE1lc3NhZ2VEYXRhIHtcclxuICAgICAgICB0aHJvdyBuZXcgRXJyb3IoYCR7dGhpcy5uYW1lfSDmnKrlrp7njrB1bnBhY2vmlrnms5VgKTtcclxuICAgIH1cclxufVxyXG5cclxuIl19

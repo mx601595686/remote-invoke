@@ -45,8 +45,8 @@
   },
   "dependencies": {
     "@types/component-emitter": "^1.2.6",
-    "component-emitter": "^1.2.1",
     "binary-ws": "^1.1.1",
+    "component-emitter": "^1.2.1",
     "log-formatter": "^0.1.3"
   }
 }
