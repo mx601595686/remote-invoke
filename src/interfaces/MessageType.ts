@@ -20,7 +20,7 @@ export enum MessageType {
      * {       
      *      messageID:number    //消息编号       
      *      data:Object         //要发送的数据，这个在发送前会被序列化成JSON       
-     *      files:{id:number 文件编号, size:number 文件大小(byte), pieceNumber:number 文件被分割成了多少块, name:string 文件名}[]    //消息附带的文件       
+     *      files:{id:number 文件编号, size:number 文件大小(byte), splitNumber:number 文件被分割成了多少块, name:string 文件名}[]    //消息附带的文件       
      * }       
      * 
      * 当把invoke_request发送出去之后调用者就开始倒计时，时长为3分钟，超过3分钟就判定请求超时。
@@ -41,7 +41,7 @@ export enum MessageType {
      * {       
      *      messageID:number    //调用者所设置的消息编号       
      *      data:Object         //要反馈的数据，这个在发送前会被序列化成JSON       
-     *      files:{id:number 文件编号, size:number 文件大小(byte), pieceNumber:number 文件被分割成了多少块, name:string 文件名}[]    //反馈消息附带的文件       
+     *      files:{id:number 文件编号, size:number 文件大小(byte), splitNumber:number 文件被分割成了多少块, name:string 文件名}[]    //反馈消息附带的文件       
      * }       
      * 
      * 如果返回的结果中包含文件，那么当把invoke_response发送出去之后，被调用者就开始倒计时，时长为3分钟，超过3分钟就直接结束响应。
@@ -96,7 +96,7 @@ export enum MessageType {
      * {       
      *      messageID:number    //调用者所设置的消息编号       
      *      id:number           //文件编号    
-     *      pieceIndex:number   //文件片段索引    
+     *      index:number        //文件片段索引    
      * }     
      */
     invoke_file_request,
@@ -114,7 +114,7 @@ export enum MessageType {
      * {       
      *      messageID:number    //调用者所设置的消息编号       
      *      id:number           //文件编号    
-     *      pieceIndex:number   //文件片段索引    
+     *      index:number        //文件片段索引    
      *      data:Buffer         //文件内容（一个文件片段的大小是512kb）    
      * }     
      */
