@@ -1,4 +1,3 @@
-
 //path格式：通过`/`来进行分割，最后一个是方法名，前面的称为命名空间，用于权限控制，例如"namespace/functionName"
 //接收到的真实文件大小应当与size一致
 
@@ -20,11 +19,16 @@ export enum MessageType {
      * {       
      *      messageID:number    //消息编号       
      *      data:Object         //要发送的数据，这个在发送前会被序列化成JSON       
-     *      files:{id:number 文件编号, size:number 文件大小(byte), splitNumber:number 文件被分割成了多少块, name:string 文件名}[]    //消息附带的文件       
+     *      files: {            //消息附带的文件       
+     *          id:number           //文件编号    
+     *          size:number         //文件大小(byte)。如果文件大小不确定则为0    
+     *          splitNumber:number  //文件被分割成了多少块。如果文件大小不确定则为0    
+     *          name:string         //文件名    
+     *      }[]    
      * }       
      * 
      * 当把invoke_request发送出去之后调用者就开始倒计时，时长为3分钟，超过3分钟就判定请求超时。
-     * 如果中途收到了被调用者传回的invoke_file_request请求，那么就重置倒计时。这一过程直到收到被调用者传回的invoke_response或invoke_failed为止。
+     * 如果中途收到了被调用者传回的invoke_file_request请求，那么就重置倒计时，这一过程直到收到被调用者传回的invoke_response或invoke_failed为止。
      */
     invoke_request,
 
@@ -41,7 +45,7 @@ export enum MessageType {
      * {       
      *      messageID:number    //调用者所设置的消息编号       
      *      data:Object         //要反馈的数据，这个在发送前会被序列化成JSON       
-     *      files:{id:number 文件编号, size:number 文件大小(byte), splitNumber:number 文件被分割成了多少块, name:string 文件名}[]    //反馈消息附带的文件       
+     *      files:{id:number, size:number, splitNumber:number, name:string}[]    //反馈消息附带的文件       
      * }       
      * 
      * 如果返回的结果中包含文件，那么当把invoke_response发送出去之后，被调用者就开始倒计时，时长为3分钟，超过3分钟就直接结束响应。
@@ -50,7 +54,7 @@ export enum MessageType {
     invoke_response,
 
     /**
-     * 当调用者接收完被调用者传回的文件之后，通知被调用者此次调用请求彻底结束。
+     * 调用者接收完被调用者传回的文件之后，通知被调用者此次调用请求彻底结束。
      * 如果被调用者在invoke_response中没有返回文件则不需要返回该消息。
      * 
      * 头部格式：              
@@ -96,7 +100,7 @@ export enum MessageType {
      * {       
      *      messageID:number    //调用者所设置的消息编号       
      *      id:number           //文件编号    
-     *      index:number        //文件片段索引    
+     *      index:number        //文件片段索引。注意：之前请求过的片段不允许重复请求，因此请求的索引编号应当一次比一次大，否则会被当成传输错误。    
      * }     
      */
     invoke_file_request,
@@ -115,7 +119,7 @@ export enum MessageType {
      *      messageID:number    //调用者所设置的消息编号       
      *      id:number           //文件编号    
      *      index:number        //文件片段索引    
-     *      data:Buffer         //文件内容（一个文件片段的大小是512kb）    
+     *      data:Buffer         //文件内容（默认的一个文件片段的大小是512kb）    
      * }     
      */
     invoke_file_response,
@@ -131,11 +135,29 @@ export enum MessageType {
      * }       
      * body格式：       
      * {       
-     *      messageID:number    //调用者所设置的消息编号       
+     *      messageID:number    //调用者所设置的消息编号    
+     *      id:number           //文件编号      
      *      error:string        //要反馈的失败的原因   
      * }     
      */
     invoke_file_failed,
+
+    /**
+     * 通知请求者所请求的文件片段index已经超出了范围（表示文件传输完成）。主要是针对于发送不确定大小文件而准备的。
+    * 
+     * 头部格式：       
+     * {       
+     *      type = invoke_file_finish   //消息类型       
+     *      sender:string               //发送者       
+     *      receiver:string             //接收者       
+     * }       
+     * body格式：       
+     * {       
+     *      messageID:number    //调用者所设置的消息编号      
+     *      id:number           //文件编号   
+     * }     
+     */
+    invoke_file_finish,
 
     /**
      * 发送者对外发出广播
