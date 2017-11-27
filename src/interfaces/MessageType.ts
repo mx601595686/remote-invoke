@@ -178,7 +178,7 @@ export enum MessageType {
      * }       
      * body格式：       
      * {       
-     *      messageID:number    //之前所设置的消息编号       
+     *      messageID:number    //broadcast_open所设置的消息编号       
      * }     
      */
     broadcast_open_finish,
@@ -207,7 +207,7 @@ export enum MessageType {
      * }       
      * body格式：       
      * {       
-     *      messageID:number    //之前所设置的消息编号       
+     *      messageID:number    //broadcast_close所设置的消息编号       
      * }     
      */
     broadcast_close_finish
