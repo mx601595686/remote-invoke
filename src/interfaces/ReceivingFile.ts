@@ -20,10 +20,11 @@ export interface ReceivingFile {
 
     /**
      * 一段一段地获取文件。     
-     * 回调函数：err：指示传输过程中是否出现了错误或者是否传输完成，index：当前的文件片段的编号，data：文件片段数据         
-     * startIndex：从指定部分开始接收文件，跳过之前部分,用于断点传输
+     * 回调函数：err：指示传输过程中是否出现了错误，isEnd：是否传输完成，index：当前的文件片段的编号，data：文件片段数据。
+     * 如果返回true则表示不再继续获取了。          
+     * startIndex：从指定部分开始接收文件，跳过之前部分,用于断点传输。
      */
-    onData: (callback: (err: Error | undefined | "end", index?: number, data?: Buffer) => void, startIndex?: number) => void
+    onData: (callback: (err: Error | undefined, isEnd: boolean, index: number, data: Buffer) => Promise<void | boolean>, startIndex?: number) => void
 
     /**
      * 直接获取整个文件
