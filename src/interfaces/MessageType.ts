@@ -1,6 +1,8 @@
 //path格式：通过`/`来进行分割，最后一个是方法名，前面的称为命名空间，用于权限控制，例如"namespace/functionName"
 //接收到的真实文件大小应当与size一致
 
+
+
 /**
  * 传输消息的类型，也可以把它理解为状态码
  */
@@ -18,7 +20,7 @@ export enum MessageType {
      * body格式：       
      * {       
      *      requestMessageID:number     //请求消息编号       
-     *      data:Object                 //要发送的数据，这个在发送前会被序列化成JSON       
+     *      data:any                    //要发送的数据，这个在发送前会被序列化成JSON       
      *      files: {                    //消息附带的文件       
      *          id:number           //文件编号    
      *          size:number         //文件大小(byte)。如果文件大小不确定则为0    
@@ -45,7 +47,7 @@ export enum MessageType {
      * {       
      *      requestMessageID:number     //请求消息编号       
      *      responseMessageID:number    //响应消息编号       
-     *      data:Object                 //要反馈的数据，这个在发送前会被序列化成JSON       
+     *      data:any                    //要反馈的数据，这个在发送前会被序列化成JSON       
      *      files:{id:number, size:number, splitNumber:number, name:string}[]    //反馈消息附带的文件       
      * }       
      * 
@@ -171,7 +173,7 @@ export enum MessageType {
      * }       
      * body格式：       
      * {       
-     *      data:Object         //要发送的数据，这个在发送前会被序列化成JSON   
+     *      data:any            //要发送的数据，这个在发送前会被序列化成JSON   
      * }     
      */
     broadcast,
