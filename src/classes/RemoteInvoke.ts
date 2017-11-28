@@ -16,12 +16,6 @@ export class RemoteInvoke {
     private readonly _exportFunctionList: Map<string, ExportFunction> = new Map();
 
     /**
-     * 注册的广播接收器    
-     * key：发送者名称 -> path名称
-     */
-    private readonly _receiveBroadcastList: Map<string, Map<string, (data: any) => any>> = new Map();
-
-    /**
      * 等待接收invoke_response或invoke_failed的回调函数列表。
      * key：messageID
      */
@@ -29,19 +23,27 @@ export class RemoteInvoke {
 
     /**
      * 等待接收invoke_finish的回调函数列表。
-     * key：messageID
+     * key：调用者名称 -> messageID
      */
     private readonly _invokeResponseList: Map<string, Map<number, Function>> = new Map();
 
     /**
      * 发送文件列表
-     * key：fileID
+     * key：messageID -> fileID
      */
-    private readonly _invokeSendFileList: Map<number, Function> = new Map();
+    private readonly _invokeSendFileList: Map<number, Map<number, Function>> = new Map();
+    
+    
+    /**
+     * 注册的广播接收器    
+     * key：发送者名称 -> path名称
+     */
+    private readonly _receiveBroadcastList: Map<string, Map<string, (data: any) => any>> = new Map();
 
-    private _messageID: number = 0; //消息索引编号，每发一条消息+1
-
-    private _fileID: number = 0;    //文件索引编号
+    /**
+     * 消息索引编号，每发一条消息+1
+     */
+    private _messageID: number = 0; 
 
     /**
      * 当前模块名称

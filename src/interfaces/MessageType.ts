@@ -17,9 +17,9 @@ export enum MessageType {
      * }       
      * body格式：       
      * {       
-     *      messageID:number    //消息编号       
-     *      data:Object         //要发送的数据，这个在发送前会被序列化成JSON       
-     *      files: {            //消息附带的文件       
+     *      requestMessageID:number     //请求消息编号       
+     *      data:Object                 //要发送的数据，这个在发送前会被序列化成JSON       
+     *      files: {                    //消息附带的文件       
      *          id:number           //文件编号    
      *          size:number         //文件大小(byte)。如果文件大小不确定则为0    
      *          splitNumber:number  //文件被分割成了多少块。如果文件大小不确定则为0    
@@ -43,8 +43,9 @@ export enum MessageType {
      * }       
      * body格式：       
      * {       
-     *      messageID:number    //调用者所设置的消息编号       
-     *      data:Object         //要反馈的数据，这个在发送前会被序列化成JSON       
+     *      requestMessageID:number     //请求消息编号       
+     *      responseMessageID:number    //响应消息编号       
+     *      data:Object                 //要反馈的数据，这个在发送前会被序列化成JSON       
      *      files:{id:number, size:number, splitNumber:number, name:string}[]    //反馈消息附带的文件       
      * }       
      * 
@@ -65,7 +66,7 @@ export enum MessageType {
      * }       
      * body格式：       
      * {       
-     *      messageID:number    //消息编号       
+     *      responseMessageID:number    //响应消息编号       
      * }    
      */
     invoke_finish,
@@ -81,8 +82,8 @@ export enum MessageType {
      * }       
      * body格式：       
      * {       
-     *      messageID:number    //调用者所设置的消息编号       
-     *      error:string        //要反馈的失败的原因   
+     *      requestMessageID:number     //调用者所设置的消息编号       
+     *      error:string                //要反馈的失败的原因   
      * }     
      */
     invoke_failed,
@@ -98,7 +99,7 @@ export enum MessageType {
      * }       
      * body格式：       
      * {       
-     *      messageID:number    //调用者所设置的消息编号       
+     *      messageID:number    //消息编号（请求时是requestMessageID，回应时是responseMessageID）       
      *      id:number           //文件编号    
      *      index:number        //文件片段索引。注意：之前请求过的片段不允许重复请求，因此请求的索引编号应当一次比一次大，否则会被当成传输错误。    
      * }     
@@ -116,7 +117,7 @@ export enum MessageType {
      * }       
      * body格式：       
      * {       
-     *      messageID:number    //调用者所设置的消息编号       
+     *      messageID:number    //消息编号       
      *      id:number           //文件编号    
      *      index:number        //文件片段索引    
      *      data:Buffer         //文件内容（默认的一个文件片段的大小是512kb）    
@@ -135,7 +136,7 @@ export enum MessageType {
      * }       
      * body格式：       
      * {       
-     *      messageID:number    //调用者所设置的消息编号    
+     *      messageID:number    //消息编号    
      *      id:number           //文件编号      
      *      error:string        //要反馈的失败的原因   
      * }     
@@ -153,7 +154,7 @@ export enum MessageType {
      * }       
      * body格式：       
      * {       
-     *      messageID:number    //调用者所设置的消息编号      
+     *      messageID:number    //消息编号      
      *      id:number           //文件编号   
      * }     
      */
@@ -170,7 +171,6 @@ export enum MessageType {
      * }       
      * body格式：       
      * {       
-     *      messageID:number    //调用者所设置的消息编号       
      *      data:Object         //要发送的数据，这个在发送前会被序列化成JSON   
      * }     
      */
