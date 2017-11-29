@@ -48,7 +48,7 @@ export enum MessageType {
      *      requestMessageID:number     //请求消息编号       
      *      responseMessageID:number    //响应消息编号       
      *      data:any                    //要反馈的数据，这个在发送前会被序列化成JSON       
-     *      files:[id:number, size:number, splitNumber:number, name:string][]    //反馈消息附带的文件       
+     *      files:[id:number, size:number|null, splitNumber:number|null, name:string][]    //反馈消息附带的文件       
      * ]       
      * 
      * 如果返回的结果中包含文件，那么当把invoke_response发送出去之后，被调用者就开始倒计时，时长为3分钟，超过3分钟就直接结束响应。

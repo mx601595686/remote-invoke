@@ -1,13 +1,95 @@
 import { RemoteInvoke } from './RemoteInvoke';
 import { MessageType } from './../interfaces/MessageType';
-import { sendingFile } from '../interfaces/SendingFile';
+
+/**
+ * 要发送的文件。既可以传递一个Buffer让系统自动分片发送也可以传递一个回调，动态分片发送。     
+ * 回调函数：index 表示文件片段的序号,0 <= index 。返回void表示发送完成，已经没有更多数据需要发送了
+ */
+export type SendingFile = Buffer | ((index: number) => Promise<Buffer | void>);
+
+/**
+ * 要被发送出去的数据
+ */
+export interface InvokeSendingData {
+
+    /**
+     * 要发送的数据
+     */
+    data: any;
+
+    /**
+     * 附带的文件
+     */
+    files?: {
+        /**
+         * 文件名
+         */
+        name: string;
+
+        /**
+         * 要发送的文件
+         */
+        file: SendingFile;
+
+        /**
+         * 文件发送进度回调函数。0 <= progress <= 1        
+         * 注意：这个只有当file为Buffer时才有效
+         */
+        onProgress?: (progress: number) => void;
+    }[]
+}
+
+/**
+ * 接收到的数据
+ */
+export interface InvokeReceivingData {
+
+    /**
+     * 接收到的数据
+     */
+    data: any;
+
+    /**
+     * 接收到的附带文件
+     */
+    files: {
+        /**
+         * 文件大小 (byte)。如果文件大小不确定则为null。      
+         * 注意：如果不为null，则系统会确保收到的 文件大小 <= size
+         */
+        size: number | null;
+
+        /**
+         * 文件被分割成了多少块。如果文件大小不确定则为null
+         */
+        splitNumber: number | null;
+
+        /**
+         * 文件名
+         */
+        name: string;
+
+        /**
+         * 一段一段地获取文件。     
+         * 回调函数：err：指示传输过程中是否出现了错误，isEnd：指示是否传输完成，index：当前的文件片段的编号，data：文件片段数据。
+         * 如果返回true则表示不再继续获取了。          
+         * startIndex：从指定部分开始接收文件，跳过之前部分,用于断点传输。
+         */
+        onData(callback: (err: Error | undefined, isEnd: boolean, index: number, data: Buffer) => Promise<void | boolean>, startIndex?: number): void;
+
+        /**
+         * 直接获取整个文件
+         */
+        getFile(): Promise<Buffer>;
+    }[]
+}
 
 /**
  * 解析消息
  * @param header 消息头部
  * @param body 消息body
  */
-export function parseMessageData(ri: RemoteInvoke, header: string, body: Buffer): MessageData {
+export function parseMessage(ri: RemoteInvoke, header: string, body: Buffer): Message {
     const p_header = JSON.parse(header);
 
     switch (p_header[0]) {
@@ -58,7 +140,7 @@ export function parseMessageData(ri: RemoteInvoke, header: string, body: Buffer)
 /**
  * 所有消息的基类
  */
-export abstract class MessageData {
+export abstract class Message {
 
     abstract type: MessageType;
 
@@ -74,19 +156,19 @@ export abstract class MessageData {
      * @param header 已近被JSON.parse后的消息头部
      * @param body 消息body
      */
-    static parse(ri: RemoteInvoke, header: any[], body: Buffer): MessageData {
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer): Message {
         throw new Error('未实现解析方法');
     }
 
     /**
      * 创建消息
      */
-    static create(ri: RemoteInvoke, ...args: any[]): MessageData {
+    static create(ri: RemoteInvoke, ...args: any[]): Message {
         throw new Error('未实现创建方法');
     }
 }
 
-export class InvokeRequestMessage extends MessageData {
+export class InvokeRequestMessage extends Message {
 
     type = MessageType.invoke_request;
     sender: string;
@@ -94,7 +176,7 @@ export class InvokeRequestMessage extends MessageData {
     path: string;
     requestMessageID: number;
     data: any;
-    files: { id: number, size: number, splitNumber: number, name: string }[]
+    files: { id: number, size: number | null, splitNumber: number | null, name: string }[]
 
     pack(): [string, Buffer] {
         return [
@@ -120,7 +202,7 @@ export class InvokeRequestMessage extends MessageData {
         return irm;
     }
 
-    static create(ri: RemoteInvoke, receiver: string, path: string, data: any, files: { name: string, file: sendingFile }[] = []) {
+    static create(ri: RemoteInvoke, receiver: string, path: string, data: any, files: { name: string, file: SendingFile }[] = []) {
         const irm = new InvokeRequestMessage();
 
         irm.sender = ri.moduleName;
@@ -131,14 +213,14 @@ export class InvokeRequestMessage extends MessageData {
         irm.files = files.map((item, index) =>
             Buffer.isBuffer(item.file) ?
                 { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / ri.filePieceSize), name: item.name } :
-                { id: index, size: 0, splitNumber: 0, name: item.name }
+                { id: index, size: null, splitNumber: null, name: item.name }
         );
 
         return irm;
     }
 }
 
-export class InvokeResponseMessage extends MessageData {
+export class InvokeResponseMessage extends Message {
 
     type = MessageType.invoke_response;
     sender: string;
@@ -146,7 +228,7 @@ export class InvokeResponseMessage extends MessageData {
     requestMessageID: number;
     responseMessageID: number;
     data: any;
-    files: { id: number, size: number, splitNumber: number, name: string }[]
+    files: { id: number, size: number | null, splitNumber: number | null, name: string }[]
 
     pack(): [string, Buffer] {
         return [
@@ -172,7 +254,7 @@ export class InvokeResponseMessage extends MessageData {
         return irm;
     }
 
-    static create(ri: RemoteInvoke, rm: InvokeRequestMessage, data: any, files: { name: string, file: sendingFile }[] = []) {
+    static create(ri: RemoteInvoke, rm: InvokeRequestMessage, data: any, files: { name: string, file: SendingFile }[] = []) {
         const irm = new InvokeResponseMessage();
 
         irm.sender = ri.moduleName;
@@ -183,14 +265,14 @@ export class InvokeResponseMessage extends MessageData {
         irm.files = files.map((item, index) =>
             Buffer.isBuffer(item.file) ?
                 { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / ri.filePieceSize), name: item.name } :
-                { id: index, size: 0, splitNumber: 0, name: item.name }
+                { id: index, size: null, splitNumber: null, name: item.name }
         );
 
         return irm;
     }
 }
 
-export class InvokeFinishMessage extends MessageData {
+export class InvokeFinishMessage extends Message {
 
     type = MessageType.invoke_finish;
     sender: string;
@@ -228,7 +310,7 @@ export class InvokeFinishMessage extends MessageData {
     }
 }
 
-export class InvokeFailedMessage extends MessageData {
+export class InvokeFailedMessage extends Message {
 
     type = MessageType.invoke_failed;
     sender: string;
@@ -270,7 +352,7 @@ export class InvokeFailedMessage extends MessageData {
     }
 }
 
-export class InvokeFileRequestMessage extends MessageData {
+export class InvokeFileRequestMessage extends Message {
 
     type = MessageType.invoke_file_request;
     sender: string;
@@ -315,7 +397,7 @@ export class InvokeFileRequestMessage extends MessageData {
     }
 }
 
-export class InvokeFileResponseMessage extends MessageData {
+export class InvokeFileResponseMessage extends Message {
 
     type = MessageType.invoke_file_response;
     sender: string;
@@ -368,7 +450,7 @@ export class InvokeFileResponseMessage extends MessageData {
     }
 }
 
-export class InvokeFileFailedMessage extends MessageData {
+export class InvokeFileFailedMessage extends Message {
 
     type = MessageType.invoke_file_failed;
     sender: string;
@@ -413,7 +495,7 @@ export class InvokeFileFailedMessage extends MessageData {
     }
 }
 
-export class InvokeFileFinishMessage extends MessageData {
+export class InvokeFileFinishMessage extends Message {
 
     type = MessageType.invoke_file_finish;
     sender: string;
@@ -455,7 +537,7 @@ export class InvokeFileFinishMessage extends MessageData {
     }
 }
 
-export class BroadcastMessage extends MessageData {
+export class BroadcastMessage extends Message {
 
     type = MessageType.broadcast;
     sender: string;
@@ -491,7 +573,7 @@ export class BroadcastMessage extends MessageData {
     }
 }
 
-export class BroadcastOpenMessage extends MessageData {
+export class BroadcastOpenMessage extends Message {
 
     type = MessageType.broadcast_open;
     path: string;
@@ -523,7 +605,7 @@ export class BroadcastOpenMessage extends MessageData {
     }
 }
 
-export class BroadcastOpenFinishMessage extends MessageData {
+export class BroadcastOpenFinishMessage extends Message {
 
     type = MessageType.broadcast_open_finish;
     messageID: number;
@@ -552,7 +634,7 @@ export class BroadcastOpenFinishMessage extends MessageData {
     }
 }
 
-export class BroadcastCloseMessage extends MessageData {
+export class BroadcastCloseMessage extends Message {
 
     type = MessageType.broadcast_close;
     path: string;
@@ -584,7 +666,7 @@ export class BroadcastCloseMessage extends MessageData {
     }
 }
 
-export class BroadcastCloseFinishMessage extends MessageData {
+export class BroadcastCloseFinishMessage extends Message {
 
     type = MessageType.broadcast_close_finish;
     messageID: number;
