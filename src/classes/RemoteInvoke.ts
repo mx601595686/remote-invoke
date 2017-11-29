@@ -3,7 +3,7 @@ import log from 'log-formatter';
 
 import { MessageType } from './../interfaces/MessageType';
 import { ConnectionSocket } from "../interfaces/ConnectionSocket";
-import { ExportFunction } from "../interfaces/ExportFunction";
+import { ExportFunction, ExportFunctionFileArgument } from "../interfaces/ExportFunction";
 import {
     parseMessageData,
     MessageData,
@@ -64,10 +64,8 @@ export class RemoteInvoke {
         this.moduleName = moduleName;
 
         this._socket.onMessage = (header, body) => {
-            let msg: MessageData;
-
             try {
-                msg = parseMessageData(this, header, body);
+                var msg = parseMessageData(this, header, body);
             } catch (error) {
                 this._printError('解析消息异常', error);
                 return;
@@ -193,17 +191,28 @@ export class RemoteInvoke {
 
     /**
      * 对外导出方法。注意：如果重复在同一path上导出，则后面的会覆盖掉前面的。    
-     * 格式：[MessageType.invoke_request, path]
      * @param path 所导出的路径
      * @param func 导出的方法 
      */
     export<F extends ExportFunction>(path: string, func: F) {
-        this._messageListener.receive([MessageType.invoke_request as any, path], ([any, Buffer]) => {   //[header, Body]
+        this._messageListener.receive([MessageType.invoke_request as any, path], async (msg: InvokeRequestMessage) => {   //[header, Body]
             try {
+                var files = msg.files.map(item => {
+                    let index = 0;  //现在接收到第几个文件片段了
 
+                    const fileArg: ExportFunctionFileArgument = {
+                        size: item.size,
+                        splitNumber: item.splitNumber,
+                        name: item.name,
+                        onData: (cb, startIndex) => { },
+                        getFile: () => { }
+                    }
+                });
             } catch{
 
             }
+
+            const result = await func(msg.data, files);
         });
 
         return func;
