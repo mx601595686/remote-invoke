@@ -69,79 +69,79 @@ export class RemoteInvoke {
                 switch (p_header[0]) {
                     case MessageType.invoke_request: {
                         const msg = InvokeRequestMessage.parse(this, p_header, body);
-                        this._messageListener.trigger([msg.type as any, msg.path], msg);
+                        this._messageListener.trigger([msg.type, msg.path] as any, msg);
 
                         break;
                     }
                     case MessageType.invoke_response: {
                         const msg = InvokeResponseMessage.parse(this, p_header, body);
-                        this._messageListener.trigger([msg.type as any, msg.sender, msg.requestMessageID], msg);
+                        this._messageListener.trigger([msg.type, msg.sender, msg.requestMessageID] as any, msg);
 
                         break;
                     }
                     case MessageType.invoke_finish: {
                         const msg = InvokeFinishMessage.parse(this, p_header, body);
-                        this._messageListener.trigger([msg.type as any, msg.sender, msg.responseMessageID], msg);
+                        this._messageListener.trigger([msg.type, msg.sender, msg.responseMessageID] as any, msg);
 
                         break;
                     }
                     case MessageType.invoke_failed: {
                         const msg = InvokeFailedMessage.parse(this, p_header, body);
-                        this._messageListener.trigger([msg.type as any, msg.sender, msg.requestMessageID], msg);
+                        this._messageListener.trigger([msg.type, msg.sender, msg.requestMessageID] as any, msg);
 
                         break;
                     }
                     case MessageType.invoke_file_request: {
                         const msg = InvokeFileRequestMessage.parse(this, p_header, body);
-                        this._messageListener.trigger([msg.type as any, msg.sender, msg.messageID, msg.id], msg);
+                        this._messageListener.trigger([msg.type, msg.sender, msg.messageID, msg.id] as any, msg);
 
                         break;
                     }
                     case MessageType.invoke_file_response: {
                         const msg = InvokeFileResponseMessage.parse(this, p_header, body);
-                        this._messageListener.trigger([msg.type as any, msg.sender, msg.messageID, msg.id], msg);
+                        this._messageListener.trigger([msg.type, msg.sender, msg.messageID, msg.id] as any, msg);
 
                         break;
                     }
                     case MessageType.invoke_file_failed: {
                         const msg = InvokeFileFailedMessage.parse(this, p_header, body);
-                        this._messageListener.trigger([msg.type as any, msg.sender, msg.messageID, msg.id], msg);
+                        this._messageListener.trigger([msg.type, msg.sender, msg.messageID, msg.id] as any, msg);
 
                         break;
                     }
                     case MessageType.invoke_file_finish: {
                         const msg = InvokeFileFinishMessage.parse(this, p_header, body);
-                        this._messageListener.trigger([msg.type as any, msg.sender, msg.messageID, msg.id], msg);
+                        this._messageListener.trigger([msg.type, msg.sender, msg.messageID, msg.id] as any, msg);
 
                         break;
                     }
                     case MessageType.broadcast: {
                         const msg = BroadcastMessage.parse(this, p_header, body);
-                        this._messageListener.trigger([msg.type as any, msg.sender, msg.path], msg);
+                        this._messageListener.trigger([msg.type, msg.sender, msg.path] as any, msg);
 
                         break;
                     }
                     case MessageType.broadcast_open: {
                         const msg = BroadcastOpenMessage.parse(this, p_header, body);
-                        this._messageListener.trigger([msg.type as any], msg);
+                        this._messageListener.trigger([msg.type] as any, msg);
 
                         break;
                     }
                     case MessageType.broadcast_open_finish: {
                         const msg = BroadcastOpenFinishMessage.parse(this, p_header, body);
-                        this._messageListener.trigger([msg.type as any, msg.messageID], msg);
+                        this._messageListener.trigger([msg.type, msg.messageID] as any, msg);
 
                         break;
                     }
                     case MessageType.broadcast_close: {
                         const msg = BroadcastCloseMessage.parse(this, p_header, body);
-                        this._messageListener.trigger([msg.type as any], msg);
+                        this._messageListener.trigger([msg.type] as any, msg);
 
                         break;
                     }
                     case MessageType.broadcast_close_finish: {
                         const msg = BroadcastCloseFinishMessage.parse(this, p_header, body);
-                        this._messageListener.trigger([msg.type as any, msg.messageID], msg);
+                        this._messageListener.trigger([msg.type, msg.messageID] as any, msg);
 
                         break;
                     }
@@ -165,6 +165,95 @@ export class RemoteInvoke {
                 .location.white
                 .title.red
                 .content.red('remote-invoke', desc, err);
+    }
+
+    /**
+     * 便于下载文件
+     */
+    private _create_InvokeReceivingData(msg: InvokeRequestMessage | InvokeResponseMessage) {
+        try {
+            var files = msg.files.map(item => {
+
+                let start: boolean = false;             //是否已经开始获取了，主要是用于防止重复注册回调函数
+                let index = 0;                          //现在接收到第几个文件片段了
+                let downloadedSize = 0;                 //已下载大小
+                let cb_error = (err: Error) => { };     //下载出错回调
+                let cb_next = (data: Buffer) => { };    //收到文件回调
+                let cb_finish = () => { };              //下载完成回调
+                const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
+                const downloadNext = () => {    //下载下一个文件片段
+                    const result = InvokeFileRequestMessage.create(this, msg, item.id, ++index).pack();
+                    this._socket.send(result[0], result[1]);
+                };
+
+                //监听下载到的文件
+                this._messageListener.receive([MessageType.invoke_file_response, msg.sender, messageID, item.id] as any, (data: InvokeFileResponseMessage) => {
+                    if (data.index !== index) cb_error(new Error('下载文件在传输过程中顺序发生错乱'));
+
+                    filePieces.push(data.data);
+                    downloadedSize += data.data.length;
+
+                    if (item.size !== 0 && downloadedSize > item.size)
+                        reject(new Error('下载到的真实文件大小超出了描述的大小'));
+
+                });
+
+
+
+                const files: InvokeReceivingData['files'] = {
+                    size: item.size,
+                    splitNumber: item.splitNumber,
+                    name: item.name,
+                    onData: (cb, startIndex) => {
+                        start = true;
+                    },
+                    getFile: () => new Promise<Buffer>((resolve, reject) => {   //下载文件回调
+                        if (start) reject(new Error('不可重复下载文件')); else start = true;
+
+                        this._messageListener.receive([
+                            MessageType.invoke_file_response as any,
+                            msg.requestMessageID as any,
+                            msg.sender,
+                            item.id as any
+                        ], (data: InvokeFileResponseMessage) => {
+                            if (data.index !== index)
+                                reject('下载文件在传输过程中顺序发生错乱');
+
+                            filePieces.push(data.data);
+                            downloadedSize += data.data.length;
+
+                            if (item.size !== 0 && downloadedSize > item.size)
+                                reject(new Error('下载到的真实文件大小超出了描述的大小'));
+
+                            if (item.splitNumber !== 0) {
+                                if (index < item.splitNumber) {
+                                    const ifr = InvokeFileRequestMessage.create(this, msg, item.id, ++index);
+                                    const [header, body] = ifr.pack();
+                                    this._socket.send(header, body);
+                                } else {
+                                    resolve(Buffer.concat(filePieces));
+                                    this._messageListener.cancel([
+                                        MessageType.invoke_file_response as any,
+                                        msg.requestMessageID as any,
+                                        msg.sender,
+                                        item.id as any
+                                    ]);
+                                }
+                            } else {
+                                const ifr = InvokeFileRequestMessage.create(this, msg, item.id, ++index);
+                                const [header, body] = ifr.pack();
+                                this._socket.send(header, body);
+                            }
+                        });
+                    })
+                }
+
+                return fileArg;
+            });
+        } catch (err) {
+            this._printError('接收到消息格式错误：解析消息文件异常', err);
+            return;
+        }
     }
 
     /**
@@ -254,4 +343,6 @@ export class RemoteInvoke {
     cancelExport(path: string) {
         this._messageListener.cancel([MessageType.invoke_request as any, path]);
     }
+
+
 }
