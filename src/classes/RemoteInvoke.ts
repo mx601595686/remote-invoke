@@ -7,15 +7,19 @@ import { ExportFunction } from "../interfaces/ExportFunction";
 
 export class RemoteInvoke {
 
-    private readonly _timeout: number = 3 * 60 * 1000; //响应超时，默认3分钟
-
-    private readonly _filePieceSize = 512 * 1024;   //默认文件片段大小 512kb
-
     private readonly _socket: ConnectionSocket;   //连接端口
 
     private readonly _messageListener = new EventSpace();  //注册的各类消息监听器  
 
-    private _messageID: number = 0;    //消息索引编号
+    /**
+     * 请求响应超时，默认3分钟
+     */
+    readonly timeout: number = 3 * 60 * 1000;
+
+    /**
+     * 默认文件片段大小 512kb
+     */
+    readonly filePieceSize = 512 * 1024;
 
     /**
      * 当前模块名称
@@ -23,7 +27,12 @@ export class RemoteInvoke {
     readonly moduleName: string;
 
     /**
-     * 是否打印收到和发送的消息。用于调试，默认false
+     * 自增消息索引编号（内部使用）
+     */
+    _messageID: number = 0;    
+
+    /**
+     * 是否打印收到和发送的消息（用于调试）。默认false
      */
     printMessage: boolean = false;
 
@@ -32,13 +41,18 @@ export class RemoteInvoke {
      */
     printError: boolean = true;
 
+
+
+
+
+    
     constructor(socket: ConnectionSocket, moduleName: string) {
         this._socket = socket;
         this._socket._used = true;
         this.moduleName = moduleName;
 
         this._socket.onMessage = (header, body) => {
-     
+
             try {
                 const p_header = 
             } catch (error) {
@@ -46,10 +60,10 @@ export class RemoteInvoke {
             }
             switch (p_header.type) {
                 case value:
-                    
+
                     break;
-                    
-            
+
+
                 default:
                     break;
             }

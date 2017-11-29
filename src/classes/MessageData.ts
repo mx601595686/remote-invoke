@@ -2,34 +2,58 @@ import { RemoteInvoke } from './RemoteInvoke';
 import { MessageType } from './../interfaces/MessageType';
 
 /**
- * 要发送的文件。既可以直接传递一个Buffer让系统自动发送也可以传递一个回调，动态发送。     
+ * 要发送的文件。既可以直接传递一个Buffer让系统自动分片发送也可以传递一个回调，动态发送。     
  * 回调函数：index 表示文件片段的序号,0 <= index 。返回void表示发送完成，已经没有更多数据需要发送了
  */
 export type sendingFile = Buffer | ((index: number) => Promise<Buffer | void>);
-
-
-
 
 /**
  * 解析消息
  * @param header 消息头部
  * @param body 消息body
  */
-export function parseMessageData(rv: RemoteInvoke, header: string, body: Buffer): MessageData {
+export function parseMessageData(ri: RemoteInvoke, header: string, body: Buffer): MessageData {
     const p_header = JSON.parse(header);
 
     switch (p_header[0]) {
         case MessageType.invoke_request:
-            return InvokeRequestMessage.parse(p_header, body);
+            return InvokeRequestMessage.parse(ri, p_header, body);
 
         case MessageType.invoke_response:
-            return InvokeResponseMessage.parse(p_header, body);
+            return InvokeResponseMessage.parse(ri, p_header, body);
 
         case MessageType.invoke_finish:
-            return InvokeFinishMessage.parse(p_header, body);
+            return InvokeFinishMessage.parse(ri, p_header, body);
 
         case MessageType.invoke_failed:
-            return InvokeFailedMessage.parse(p_header, body);
+            return InvokeFailedMessage.parse(ri, p_header, body);
+
+        case MessageType.invoke_file_request:
+            return InvokeFileRequestMessage.parse(ri, p_header, body);
+
+        case MessageType.invoke_file_response:
+            return InvokeFileResponseMessage.parse(ri, p_header, body);
+
+        case MessageType.invoke_file_failed:
+            return InvokeFileFailedMessage.parse(ri, p_header, body);
+
+        case MessageType.invoke_file_finish:
+            return InvokeFileFinishMessage.parse(ri, p_header, body);
+
+        case MessageType.broadcast:
+            return BroadcastMessage.parse(ri, p_header, body);
+
+        case MessageType.broadcast_open:
+            return BroadcastOpenMessage.parse(ri, p_header, body);
+
+        case MessageType.broadcast_open_finish:
+            return BroadcastOpenFinishMessage.parse(ri, p_header, body);
+
+        case MessageType.broadcast_close:
+            return BroadcastCloseMessage.parse(ri, p_header, body);
+
+        case MessageType.broadcast_close_finish:
+            return BroadcastCloseFinishMessage.parse(ri, p_header, body);
 
         default:
             throw new Error('未知消息类型');
@@ -45,23 +69,24 @@ export abstract class MessageData {
 
     /**
      * 打包这条消息。返回[消息头部，消息body]       
-     * 注意：打包后的头部是一个数组，数组的第一项总是type
+     * 注意：打包后的头部是一个数组，数组的第一项总是type，如果还有那么第二项就是sender，第三项就是receiver，第四项就是path
      */
     abstract pack(): [string, Buffer];
 
     /**
      * 解析消息
+     * @param ri RemoteInvoke
      * @param header 已近被JSON.parse后的消息头部
      * @param body 消息body
      */
-    static parse(header: any[], body: Buffer): MessageData {
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer): MessageData {
         throw new Error('未实现解析方法');
     }
 
     /**
      * 创建消息
      */
-    static create(...args: any[]): MessageData {
+    static create(ri: RemoteInvoke, ...args: any[]): MessageData {
         throw new Error('未实现创建方法');
     }
 }
@@ -83,14 +108,16 @@ export class InvokeRequestMessage extends MessageData {
         ];
     }
 
-    static parse(header: any[], body: Buffer) {
-        const p_body = JSON.parse(body.toString());
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
         const irm = new InvokeRequestMessage();
-
         irm.sender = header[1];
         irm.receiver = header[2];
         irm.path = header[3];
 
+        if (irm.receiver !== ri.moduleName)
+            throw new Error(`收到了不属于自己的消息。sender：${irm.sender} ，receiver：${irm.receiver}`);
+
+        const p_body = JSON.parse(body.toString());
         irm.requestMessageID = p_body[0];
         irm.data = p_body[1];
         irm.files = p_body[2].map((item: any) => ({ id: item[0], size: item[1], splitNumber: item[2], name: item[3] }));
@@ -98,17 +125,17 @@ export class InvokeRequestMessage extends MessageData {
         return irm;
     }
 
-    static create(rv: RemoteInvoke, receiver: string, path: string, data: any, files: { name: string, file: sendingFile }[] = []) {
+    static create(ri: RemoteInvoke, receiver: string, path: string, data: any, files: { name: string, file: sendingFile }[] = []) {
         const irm = new InvokeRequestMessage();
 
-        irm.sender = rv.moduleName;
+        irm.sender = ri.moduleName;
         irm.receiver = receiver;
         irm.path = path;
-        irm.requestMessageID = (<any>rv)._messageID++;
+        irm.requestMessageID = ri._messageID++;
         irm.data = data;
         irm.files = files.map((item, index) =>
             Buffer.isBuffer(item.file) ?
-                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / (<any>rv)._filePieceSize), name: item.name } :
+                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / ri.filePieceSize), name: item.name } :
                 { id: index, size: 0, splitNumber: 0, name: item.name }
         );
 
@@ -133,13 +160,15 @@ export class InvokeResponseMessage extends MessageData {
         ];
     }
 
-    static parse(header: any[], body: Buffer) {
-        const p_body = JSON.parse(body.toString());
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
         const irm = new InvokeResponseMessage();
-
         irm.sender = header[1];
         irm.receiver = header[2];
 
+        if (irm.receiver !== ri.moduleName)
+            throw new Error(`收到了不属于自己的消息。sender：${irm.sender} ，receiver：${irm.receiver}`);
+
+        const p_body = JSON.parse(body.toString());
         irm.requestMessageID = p_body[0];
         irm.responseMessageID = p_body[1];
         irm.data = p_body[2];
@@ -148,17 +177,17 @@ export class InvokeResponseMessage extends MessageData {
         return irm;
     }
 
-    static create(rv: RemoteInvoke, rm: InvokeRequestMessage, data: any, files: { name: string, file: sendingFile }[] = []) {
+    static create(ri: RemoteInvoke, rm: InvokeRequestMessage, data: any, files: { name: string, file: sendingFile }[] = []) {
         const irm = new InvokeResponseMessage();
 
-        irm.sender = rm.receiver;
+        irm.sender = ri.moduleName;
         irm.receiver = rm.sender;
         irm.requestMessageID = rm.requestMessageID;
-        irm.responseMessageID = (<any>rv)._messageID++;
+        irm.responseMessageID = ri._messageID++;
         irm.data = data;
         irm.files = files.map((item, index) =>
             Buffer.isBuffer(item.file) ?
-                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / (<any>rv)._filePieceSize), name: item.name } :
+                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / ri.filePieceSize), name: item.name } :
                 { id: index, size: 0, splitNumber: 0, name: item.name }
         );
 
@@ -180,25 +209,27 @@ export class InvokeFinishMessage extends MessageData {
         ];
     }
 
-    static parse(header: any[], body: Buffer) {
-        const ifi = new InvokeFinishMessage();
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+        const ifm = new InvokeFinishMessage();
+        ifm.sender = header[1];
+        ifm.receiver = header[2];
 
-        ifi.sender = header[1];
-        ifi.receiver = header[2];
+        if (ifm.receiver !== ri.moduleName)
+            throw new Error(`收到了不属于自己的消息。sender：${ifm.sender} ，receiver：${ifm.receiver}`);
 
-        ifi.responseMessageID = Number.parseInt(body.toString());
+        ifm.responseMessageID = Number.parseInt(body.toString());
 
-        return ifi;
+        return ifm;
     }
 
-    static create(rm: InvokeResponseMessage) {
-        const ifi = new InvokeFinishMessage();
+    static create(ri: RemoteInvoke, rm: InvokeResponseMessage) {
+        const ifm = new InvokeFinishMessage();
 
-        ifi.sender = rm.receiver;
-        ifi.receiver = rm.sender;
-        ifi.responseMessageID = rm.responseMessageID;
+        ifm.sender = ri.moduleName;
+        ifm.receiver = rm.sender;
+        ifm.responseMessageID = rm.responseMessageID;
 
-        return ifi;
+        return ifm;
     }
 }
 
@@ -217,23 +248,25 @@ export class InvokeFailedMessage extends MessageData {
         ];
     }
 
-    static parse(header: any[], body: Buffer) {
-        const p_body = JSON.parse(body.toString());
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
         const ifa = new InvokeFailedMessage();
-
         ifa.sender = header[1];
         ifa.receiver = header[2];
 
+        if (ifa.receiver !== ri.moduleName)
+            throw new Error(`收到了不属于自己的消息。sender：${ifa.sender} ，receiver：${ifa.receiver}`);
+
+        const p_body = JSON.parse(body.toString());
         ifa.requestMessageID = p_body[0];
         ifa.error = p_body[1];
 
         return ifa;
     }
 
-    static create(rm: InvokeRequestMessage, err: Error) {
+    static create(ri: RemoteInvoke, rm: InvokeRequestMessage, err: Error) {
         const ifa = new InvokeFailedMessage();
 
-        ifa.sender = rm.receiver;
+        ifa.sender = ri.moduleName;
         ifa.receiver = rm.sender;
         ifa.requestMessageID = rm.requestMessageID;
         ifa.error = err.message;
@@ -258,13 +291,15 @@ export class InvokeFileRequestMessage extends MessageData {
         ];
     }
 
-    static parse(header: any[], body: Buffer) {
-        const p_body = JSON.parse(body.toString());
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
         const ifr = new InvokeFileRequestMessage();
-
         ifr.sender = header[1];
         ifr.receiver = header[2];
 
+        if (ifr.receiver !== ri.moduleName)
+            throw new Error(`收到了不属于自己的消息。sender：${ifr.sender} ，receiver：${ifr.receiver}`);
+
+        const p_body = JSON.parse(body.toString());
         ifr.messageID = p_body[0];
         ifr.id = p_body[1];
         ifr.index = p_body[2];
@@ -272,10 +307,10 @@ export class InvokeFileRequestMessage extends MessageData {
         return ifr;
     }
 
-    static create(rm: InvokeRequestMessage | InvokeResponseMessage, id: number, index: number) {
+    static create(ri: RemoteInvoke, rm: InvokeRequestMessage | InvokeResponseMessage, id: number, index: number) {
         const ifr = new InvokeFileRequestMessage();
 
-        ifr.sender = rm.receiver;
+        ifr.sender = ri.moduleName;
         ifr.receiver = rm.sender;
         ifr.messageID = rm instanceof InvokeRequestMessage ? rm.requestMessageID : rm.responseMessageID;
         ifr.id = id;
@@ -306,14 +341,16 @@ export class InvokeFileResponseMessage extends MessageData {
         ];
     }
 
-    static parse(header: any[], body: Buffer) {
-        const b_json_length = body.readUInt32BE(0);
-        const b_json = JSON.parse(body.slice(4, 4 + b_json_length).toString());
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
         const ifr = new InvokeFileResponseMessage();
-
         ifr.sender = header[1];
         ifr.receiver = header[2];
 
+        if (ifr.receiver !== ri.moduleName)
+            throw new Error(`收到了不属于自己的消息。sender：${ifr.sender} ，receiver：${ifr.receiver}`);
+
+        const b_json_length = body.readUInt32BE(0);
+        const b_json = JSON.parse(body.slice(4, 4 + b_json_length).toString());
         ifr.messageID = b_json[0];
         ifr.id = b_json[1];
         ifr.index = b_json[2];
@@ -322,10 +359,10 @@ export class InvokeFileResponseMessage extends MessageData {
         return ifr;
     }
 
-    static create(rfm: InvokeFileRequestMessage, data: Buffer) {
+    static create(ri: RemoteInvoke, rfm: InvokeFileRequestMessage, data: Buffer) {
         const ifr = new InvokeFileResponseMessage();
 
-        ifr.sender = rfm.receiver;
+        ifr.sender = ri.moduleName;
         ifr.receiver = rfm.sender;
         ifr.messageID = rfm.messageID;
         ifr.id = rfm.id;
@@ -352,13 +389,15 @@ export class InvokeFileFailedMessage extends MessageData {
         ];
     }
 
-    static parse(header: any[], body: Buffer) {
-        const p_body = JSON.parse(body.toString());
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
         const iff = new InvokeFileFailedMessage();
-
         iff.sender = header[1];
         iff.receiver = header[2];
 
+        if (iff.receiver !== ri.moduleName)
+            throw new Error(`收到了不属于自己的消息。sender：${iff.sender} ，receiver：${iff.receiver}`);
+
+        const p_body = JSON.parse(body.toString());
         iff.messageID = p_body[0];
         iff.id = p_body[1];
         iff.error = p_body[2];
@@ -366,10 +405,10 @@ export class InvokeFileFailedMessage extends MessageData {
         return iff;
     }
 
-    static create(rm: InvokeFileRequestMessage, err: Error) {
+    static create(ri: RemoteInvoke, rm: InvokeFileRequestMessage, err: Error) {
         const iff = new InvokeFileFailedMessage();
 
-        iff.sender = rm.receiver;
+        iff.sender = ri.moduleName;
         iff.receiver = rm.sender;
         iff.messageID = rm.messageID;
         iff.id = rm.id;
@@ -394,23 +433,25 @@ export class InvokeFileFinishMessage extends MessageData {
         ];
     }
 
-    static parse(header: any[], body: Buffer) {
-        const p_body = JSON.parse(body.toString());
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
         const iff = new InvokeFileFinishMessage();
-
         iff.sender = header[1];
         iff.receiver = header[2];
 
+        if (iff.receiver !== ri.moduleName)
+            throw new Error(`收到了不属于自己的消息。sender：${iff.sender} ，receiver：${iff.receiver}`);
+
+        const p_body = JSON.parse(body.toString());
         iff.messageID = p_body[0];
         iff.id = p_body[1];
 
         return iff;
     }
 
-    static create(rm: InvokeFileRequestMessage) {
+    static create(ri: RemoteInvoke, rm: InvokeFileRequestMessage) {
         const iff = new InvokeFileFinishMessage();
 
-        iff.sender = rm.receiver;
+        iff.sender = ri.moduleName;
         iff.receiver = rm.sender;
         iff.messageID = rm.messageID;
         iff.id = rm.id;
@@ -428,26 +469,26 @@ export class BroadcastMessage extends MessageData {
 
     pack(): [string, Buffer] {
         return [
-            JSON.stringify([this.type, this.sender, this.path]),
+            JSON.stringify([this.type, this.sender, null, this.path]),
             Buffer.from(JSON.stringify(this.data))
         ];
     }
 
-    static parse(header: any[], body: Buffer) {
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
         const bm = new BroadcastMessage();
 
         bm.sender = header[1];
-        bm.path = header[2];
+        bm.path = header[3];
 
         bm.data = JSON.parse(body.toString());
 
         return bm;
     }
 
-    static create(rv: RemoteInvoke, path: string, data: any) {
+    static create(ri: RemoteInvoke, path: string, data: any) {
         const bm = new BroadcastMessage();
 
-        bm.sender = rv.moduleName;
+        bm.sender = ri.moduleName;
         bm.path = path;
         bm.data = data;
 
@@ -463,25 +504,25 @@ export class BroadcastOpenMessage extends MessageData {
 
     pack(): [string, Buffer] {
         return [
-            JSON.stringify([this.type, this.path]),
+            JSON.stringify([this.type, null, null, this.path]),
             Buffer.from(this.messageID.toString())
         ];
     }
 
-    static parse(header: any[], body: Buffer) {
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
         const bom = new BroadcastOpenMessage();
 
-        bom.path = header[1];
+        bom.path = header[3];
         bom.messageID = Number.parseInt(body.toString());
 
         return bom;
     }
 
-    static create(rv: RemoteInvoke, path: string) {
+    static create(ri: RemoteInvoke, path: string) {
         const bom = new BroadcastOpenMessage();
 
         bom.path = path;
-        bom.messageID = (<any>rv)._messageID++;
+        bom.messageID = ri._messageID++;
 
         return bom;
     }
@@ -499,7 +540,7 @@ export class BroadcastOpenFinishMessage extends MessageData {
         ];
     }
 
-    static parse(header: any[], body: Buffer) {
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
         const bof = new BroadcastOpenFinishMessage();
 
         bof.messageID = Number.parseInt(body.toString());
@@ -507,7 +548,7 @@ export class BroadcastOpenFinishMessage extends MessageData {
         return bof;
     }
 
-    static create(bom: BroadcastOpenMessage) {
+    static create(ri: RemoteInvoke, bom: BroadcastOpenMessage) {
         const bof = new BroadcastOpenFinishMessage();
 
         bof.messageID = bom.messageID;
@@ -517,62 +558,62 @@ export class BroadcastOpenFinishMessage extends MessageData {
 }
 
 export class BroadcastCloseMessage extends MessageData {
-    
-        type = MessageType.broadcast_close;
-        path: string;
-        messageID: number;
-    
-        pack(): [string, Buffer] {
-            return [
-                JSON.stringify([this.type, this.path]),
-                Buffer.from(this.messageID.toString())
-            ];
-        }
-    
-        static parse(header: any[], body: Buffer) {
-            const bcm = new BroadcastCloseMessage();
-    
-            bcm.path = header[1];
-            bcm.messageID = Number.parseInt(body.toString());
-    
-            return bcm;
-        }
-    
-        static create(rv: RemoteInvoke, path: string) {
-            const bcm = new BroadcastCloseMessage();
-    
-            bcm.path = path;
-            bcm.messageID = (<any>rv)._messageID++;
-    
-            return bcm;
-        }
+
+    type = MessageType.broadcast_close;
+    path: string;
+    messageID: number;
+
+    pack(): [string, Buffer] {
+        return [
+            JSON.stringify([this.type, null, null, this.path]),
+            Buffer.from(this.messageID.toString())
+        ];
     }
-    
-    export class BroadcastCloseFinishMessage extends MessageData {
-    
-        type = MessageType.broadcast_close_finish;
-        messageID: number;
-    
-        pack(): [string, Buffer] {
-            return [
-                JSON.stringify([this.type]),
-                Buffer.from(this.messageID.toString())
-            ];
-        }
-    
-        static parse(header: any[], body: Buffer) {
-            const bcf = new BroadcastCloseFinishMessage();
-    
-            bcf.messageID = Number.parseInt(body.toString());
-    
-            return bcf;
-        }
-    
-        static create(bom: BroadcastOpenMessage) {
-            const bcf = new BroadcastCloseFinishMessage();
-    
-            bcf.messageID = bom.messageID;
-    
-            return bcf;
-        }
+
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+        const bcm = new BroadcastCloseMessage();
+
+        bcm.path = header[3];
+        bcm.messageID = Number.parseInt(body.toString());
+
+        return bcm;
     }
+
+    static create(ri: RemoteInvoke, path: string) {
+        const bcm = new BroadcastCloseMessage();
+
+        bcm.path = path;
+        bcm.messageID = ri._messageID++;
+
+        return bcm;
+    }
+}
+
+export class BroadcastCloseFinishMessage extends MessageData {
+
+    type = MessageType.broadcast_close_finish;
+    messageID: number;
+
+    pack(): [string, Buffer] {
+        return [
+            JSON.stringify([this.type]),
+            Buffer.from(this.messageID.toString())
+        ];
+    }
+
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+        const bcf = new BroadcastCloseFinishMessage();
+
+        bcf.messageID = Number.parseInt(body.toString());
+
+        return bcf;
+    }
+
+    static create(ri: RemoteInvoke, bom: BroadcastOpenMessage) {
+        const bcf = new BroadcastCloseFinishMessage();
+
+        bcf.messageID = bom.messageID;
+
+        return bcf;
+    }
+}

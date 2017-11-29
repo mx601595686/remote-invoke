@@ -91,7 +91,7 @@ export enum MessageType {
     invoke_failed,
 
     /**
-     * 请求invoke过程中所包含的文件片段
+     * 获取invoke_request或invoke_response过程中所包含的文件片段
      * 
      * 头部格式：       
      * {       
@@ -119,7 +119,7 @@ export enum MessageType {
      * }       
      * body格式：       
      * {       
-     *      messageID:number    //消息编号       
+     *      messageID:number    //invoke_file_request的消息编号       
      *      id:number           //文件编号    
      *      index:number        //文件片段索引    
      *      data:Buffer         //文件内容（默认的一个文件片段的大小是512kb）    
@@ -138,7 +138,7 @@ export enum MessageType {
      * }       
      * body格式：       
      * {       
-     *      messageID:number    //消息编号    
+     *      messageID:number    //invoke_file_request的消息编号    
      *      id:number           //文件编号      
      *      error:string        //要反馈的失败的原因   
      * }     
@@ -156,7 +156,7 @@ export enum MessageType {
      * }       
      * body格式：       
      * {       
-     *      messageID:number    //消息编号      
+     *      messageID:number    //invoke_file_request的消息编号      
      *      id:number           //文件编号   
      * }     
      */
