@@ -3,10 +3,10 @@ import log from 'log-formatter';
 
 import { MessageType } from './../interfaces/MessageType';
 import { ConnectionSocket } from "../interfaces/ConnectionSocket";
-import { ExportFunction, ExportFunctionFileArgument } from "../interfaces/ExportFunction";
+import { InvokeReceivingData } from '../interfaces/InvokeReceivingData';
+import { InvokeSendingData } from '../interfaces/InvokeSendingData';
 import {
-    parseMessageData,
-    MessageData,
+    Message,
     InvokeRequestMessage,
     InvokeResponseMessage,
     InvokeFinishMessage,
@@ -28,10 +28,7 @@ export class RemoteInvoke {
 
     private readonly _messageListener = new EventSpace();   //注册的各类消息监听器    
 
-    /**
-     * 自增消息索引编号（内部使用）
-     */
-    _messageID: number = 0;
+    private _messageID: number = 0; //自增消息索引编号
 
     /**
      * 请求响应超时，默认3分钟
@@ -60,120 +57,99 @@ export class RemoteInvoke {
 
     constructor(socket: ConnectionSocket, moduleName: string) {
         this.moduleName = moduleName;
+        this._socket = socket;
 
         if (socket.onMessage !== undefined)
-            throw new Error('传入的ConnectionSocket正在被其他的代码所使用');
+            throw new Error('传入的ConnectionSocket的onMessage已经被占用');
 
-        this._socket = socket;
         this._socket.onMessage = (header, body) => {
             try {
-                var msg = parseMessageData(this, header, body);
+                const p_header = JSON.parse(header);
+
+                switch (p_header[0]) {
+                    case MessageType.invoke_request: {
+                        const msg = InvokeRequestMessage.parse(this, p_header, body);
+                        this._messageListener.trigger([msg.type as any, msg.path], msg);
+
+                        break;
+                    }
+                    case MessageType.invoke_response: {
+                        const msg = InvokeResponseMessage.parse(this, p_header, body);
+                        this._messageListener.trigger([msg.type as any, msg.sender, msg.requestMessageID], msg);
+
+                        break;
+                    }
+                    case MessageType.invoke_finish: {
+                        const msg = InvokeFinishMessage.parse(this, p_header, body);
+                        this._messageListener.trigger([msg.type as any, msg.sender, msg.responseMessageID], msg);
+
+                        break;
+                    }
+                    case MessageType.invoke_failed: {
+                        const msg = InvokeFailedMessage.parse(this, p_header, body);
+                        this._messageListener.trigger([msg.type as any, msg.sender, msg.requestMessageID], msg);
+
+                        break;
+                    }
+                    case MessageType.invoke_file_request: {
+                        const msg = InvokeFileRequestMessage.parse(this, p_header, body);
+                        this._messageListener.trigger([msg.type as any, msg.sender, msg.messageID, msg.id], msg);
+
+                        break;
+                    }
+                    case MessageType.invoke_file_response: {
+                        const msg = InvokeFileResponseMessage.parse(this, p_header, body);
+                        this._messageListener.trigger([msg.type as any, msg.sender, msg.messageID, msg.id], msg);
+
+                        break;
+                    }
+                    case MessageType.invoke_file_failed: {
+                        const msg = InvokeFileFailedMessage.parse(this, p_header, body);
+                        this._messageListener.trigger([msg.type as any, msg.sender, msg.messageID, msg.id], msg);
+
+                        break;
+                    }
+                    case MessageType.invoke_file_finish: {
+                        const msg = InvokeFileFinishMessage.parse(this, p_header, body);
+                        this._messageListener.trigger([msg.type as any, msg.sender, msg.messageID, msg.id], msg);
+
+                        break;
+                    }
+                    case MessageType.broadcast: {
+                        const msg = BroadcastMessage.parse(this, p_header, body);
+                        this._messageListener.trigger([msg.type as any, msg.sender, msg.path], msg);
+
+                        break;
+                    }
+                    case MessageType.broadcast_open: {
+                        const msg = BroadcastOpenMessage.parse(this, p_header, body);
+                        this._messageListener.trigger([msg.type as any], msg);
+
+                        break;
+                    }
+                    case MessageType.broadcast_open_finish: {
+                        const msg = BroadcastOpenFinishMessage.parse(this, p_header, body);
+                        this._messageListener.trigger([msg.type as any, msg.messageID], msg);
+
+                        break;
+                    }
+                    case MessageType.broadcast_close: {
+                        const msg = BroadcastCloseMessage.parse(this, p_header, body);
+                        this._messageListener.trigger([msg.type as any], msg);
+
+                        break;
+                    }
+                    case MessageType.broadcast_close_finish: {
+                        const msg = BroadcastCloseFinishMessage.parse(this, p_header, body);
+                        this._messageListener.trigger([msg.type as any, msg.messageID], msg);
+
+                        break;
+                    }
+                    default:
+                        throw new Error(`未知消息类型：${p_header}`);
+                }
             } catch (error) {
                 this._printError('接收到消息格式错误：', error);
-                return;
-            }
-
-            switch (msg.type) {
-                case MessageType.invoke_request:
-                    this._messageListener.trigger([
-                        msg.type as any,
-                        (<InvokeRequestMessage>msg).path    //调用地址
-                    ], msg);
-                    break;
-
-                case MessageType.invoke_response:
-                    this._messageListener.trigger([
-                        msg.type as any,
-                        (<InvokeResponseMessage>msg).requestMessageID,
-                        (<InvokeResponseMessage>msg).sender //这里多加一个sender是为了防冒充
-                    ], msg);
-                    break;
-
-                case MessageType.invoke_finish:
-                    this._messageListener.trigger([
-                        msg.type as any,
-                        (<InvokeFinishMessage>msg).responseMessageID,
-                        (<InvokeFinishMessage>msg).sender
-                    ], msg);
-                    break;
-
-                case MessageType.invoke_failed:
-                    this._messageListener.trigger([
-                        msg.type as any,
-                        (<InvokeFailedMessage>msg).requestMessageID,
-                        (<InvokeFailedMessage>msg).sender
-                    ], msg);
-                    break;
-
-                case MessageType.invoke_file_request:
-                    this._messageListener.trigger([
-                        msg.type as any,
-                        (<InvokeFileRequestMessage>msg).messageID,
-                        (<InvokeFileRequestMessage>msg).sender,
-                        (<InvokeFileRequestMessage>msg).id
-                    ], msg);
-                    break;
-
-                case MessageType.invoke_file_response:
-                    this._messageListener.trigger([
-                        msg.type as any,
-                        (<InvokeFileResponseMessage>msg).messageID,
-                        (<InvokeFileResponseMessage>msg).sender,
-                        (<InvokeFileResponseMessage>msg).id
-                    ], msg);
-                    break;
-
-                case MessageType.invoke_file_failed:
-                    this._messageListener.trigger([
-                        msg.type as any,
-                        (<InvokeFileFailedMessage>msg).messageID,
-                        (<InvokeFileFailedMessage>msg).sender,
-                        (<InvokeFileFailedMessage>msg).id
-                    ], msg);
-                    break;
-
-                case MessageType.invoke_file_finish:
-                    this._messageListener.trigger([
-                        msg.type as any,
-                        (<InvokeFileFinishMessage>msg).messageID,
-                        (<InvokeFileFinishMessage>msg).sender,
-                        (<InvokeFileFinishMessage>msg).id
-                    ], msg);
-                    break;
-
-                case MessageType.broadcast:
-                    this._messageListener.trigger([
-                        msg.type as any,
-                        (<BroadcastMessage>msg).sender,
-                        (<BroadcastMessage>msg).path
-                    ], msg);
-                    break;
-
-                case MessageType.broadcast_open:
-                    this._messageListener.trigger([
-                        msg.type as any
-                    ], msg);
-                    break;
-
-                case MessageType.broadcast_open_finish:
-                    this._messageListener.trigger([
-                        msg.type as any,
-                        (<BroadcastOpenFinishMessage>msg).messageID
-                    ], msg);
-                    break;
-
-                case MessageType.broadcast_close:
-                    this._messageListener.trigger([
-                        msg.type as any
-                    ], msg);
-                    break;
-
-                case MessageType.broadcast_close_finish:
-                    this._messageListener.trigger([
-                        msg.type as any,
-                        (<BroadcastCloseFinishMessage>msg).messageID
-                    ], msg);
-                    break;
             }
         };
     }
@@ -192,17 +168,21 @@ export class RemoteInvoke {
     }
 
     /**
-     * 对外导出方法。注意：如果重复在同一path上导出，则后面的会覆盖掉前面的。    
+     * 对外导出方法。     
+     * 注意：如果重复在同一path上导出，则后面的会覆盖掉前面的。    
+     * 注意：方法一旦执行结束（返回了promise）那么就不能再获取客户端发来的文件了。     
      * @param path 所导出的路径
      * @param func 导出的方法 
      */
-    export<F extends ExportFunction>(path: string, func: F) {
+    export<F extends (data: InvokeReceivingData) => Promise<void | InvokeSendingData>>(path: string, func: F) {
+        this.cancelExport(path);
+
         this._messageListener.receive([MessageType.invoke_request as any, path], async (msg: InvokeRequestMessage) => {
             try {
                 var files = msg.files.map(item => {
                     let start: boolean = false;  //是否已经开始获取了，主要是用于防止重复注册回调函数
 
-                    const fileArg: ExportFunctionFileArgument = {
+                    const fileArg: InvokeReceivingData['files'] = {
                         size: item.size,
                         splitNumber: item.splitNumber,
                         name: item.name,

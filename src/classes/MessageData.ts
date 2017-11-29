@@ -1,141 +1,6 @@
 import { RemoteInvoke } from './RemoteInvoke';
 import { MessageType } from './../interfaces/MessageType';
-
-/**
- * 要发送的文件。既可以传递一个Buffer让系统自动分片发送也可以传递一个回调，动态分片发送。     
- * 回调函数：index 表示文件片段的序号,0 <= index 。返回void表示发送完成，已经没有更多数据需要发送了
- */
-export type SendingFile = Buffer | ((index: number) => Promise<Buffer | void>);
-
-/**
- * 要被发送出去的数据
- */
-export interface InvokeSendingData {
-
-    /**
-     * 要发送的数据
-     */
-    data: any;
-
-    /**
-     * 附带的文件
-     */
-    files?: {
-        /**
-         * 文件名
-         */
-        name: string;
-
-        /**
-         * 要发送的文件
-         */
-        file: SendingFile;
-
-        /**
-         * 文件发送进度回调函数。0 <= progress <= 1        
-         * 注意：这个只有当file为Buffer时才有效
-         */
-        onProgress?: (progress: number) => void;
-    }[]
-}
-
-/**
- * 接收到的数据
- */
-export interface InvokeReceivingData {
-
-    /**
-     * 接收到的数据
-     */
-    data: any;
-
-    /**
-     * 接收到的附带文件
-     */
-    files: {
-        /**
-         * 文件大小 (byte)。如果文件大小不确定则为null。      
-         * 注意：如果不为null，则系统会确保收到的 文件大小 <= size
-         */
-        size: number | null;
-
-        /**
-         * 文件被分割成了多少块。如果文件大小不确定则为null
-         */
-        splitNumber: number | null;
-
-        /**
-         * 文件名
-         */
-        name: string;
-
-        /**
-         * 一段一段地获取文件。     
-         * 回调函数：err：指示传输过程中是否出现了错误，isEnd：指示是否传输完成，index：当前的文件片段的编号，data：文件片段数据。
-         * 如果返回true则表示不再继续获取了。          
-         * startIndex：从指定部分开始接收文件，跳过之前部分,用于断点传输。
-         */
-        onData(callback: (err: Error | undefined, isEnd: boolean, index: number, data: Buffer) => Promise<void | boolean>, startIndex?: number): void;
-
-        /**
-         * 直接获取整个文件
-         */
-        getFile(): Promise<Buffer>;
-    }[]
-}
-
-/**
- * 解析消息
- * @param header 消息头部
- * @param body 消息body
- */
-export function parseMessage(ri: RemoteInvoke, header: string, body: Buffer): Message {
-    const p_header = JSON.parse(header);
-
-    switch (p_header[0]) {
-        case MessageType.invoke_request:
-            return InvokeRequestMessage.parse(ri, p_header, body);
-
-        case MessageType.invoke_response:
-            return InvokeResponseMessage.parse(ri, p_header, body);
-
-        case MessageType.invoke_finish:
-            return InvokeFinishMessage.parse(ri, p_header, body);
-
-        case MessageType.invoke_failed:
-            return InvokeFailedMessage.parse(ri, p_header, body);
-
-        case MessageType.invoke_file_request:
-            return InvokeFileRequestMessage.parse(ri, p_header, body);
-
-        case MessageType.invoke_file_response:
-            return InvokeFileResponseMessage.parse(ri, p_header, body);
-
-        case MessageType.invoke_file_failed:
-            return InvokeFileFailedMessage.parse(ri, p_header, body);
-
-        case MessageType.invoke_file_finish:
-            return InvokeFileFinishMessage.parse(ri, p_header, body);
-
-        case MessageType.broadcast:
-            return BroadcastMessage.parse(ri, p_header, body);
-
-        case MessageType.broadcast_open:
-            return BroadcastOpenMessage.parse(ri, p_header, body);
-
-        case MessageType.broadcast_open_finish:
-            return BroadcastOpenFinishMessage.parse(ri, p_header, body);
-
-        case MessageType.broadcast_close:
-            return BroadcastCloseMessage.parse(ri, p_header, body);
-
-        case MessageType.broadcast_close_finish:
-            return BroadcastCloseFinishMessage.parse(ri, p_header, body);
-
-        default:
-            throw new Error('未知消息类型');
-    }
-}
+import { SendingFile } from '../interfaces/SendingFile';
 
 /**
  * 所有消息的基类
@@ -202,13 +67,13 @@ export class InvokeRequestMessage extends Message {
         return irm;
     }
 
-    static create(ri: RemoteInvoke, receiver: string, path: string, data: any, files: { name: string, file: SendingFile }[] = []) {
+    static create(ri: RemoteInvoke, messageID: number, receiver: string, path: string, data: any, files: { name: string, file: SendingFile }[] = []) {
         const irm = new InvokeRequestMessage();
 
         irm.sender = ri.moduleName;
         irm.receiver = receiver;
         irm.path = path;
-        irm.requestMessageID = ri._messageID++;
+        irm.requestMessageID = messageID;
         irm.data = data;
         irm.files = files.map((item, index) =>
             Buffer.isBuffer(item.file) ?
@@ -254,13 +119,13 @@ export class InvokeResponseMessage extends Message {
         return irm;
     }
 
-    static create(ri: RemoteInvoke, rm: InvokeRequestMessage, data: any, files: { name: string, file: SendingFile }[] = []) {
+    static create(ri: RemoteInvoke, rm: InvokeRequestMessage, messageID: number, data: any, files: { name: string, file: SendingFile }[] = []) {
         const irm = new InvokeResponseMessage();
 
         irm.sender = ri.moduleName;
         irm.receiver = rm.sender;
         irm.requestMessageID = rm.requestMessageID;
-        irm.responseMessageID = ri._messageID++;
+        irm.responseMessageID = messageID;
         irm.data = data;
         irm.files = files.map((item, index) =>
             Buffer.isBuffer(item.file) ?
@@ -595,11 +460,11 @@ export class BroadcastOpenMessage extends Message {
         return bom;
     }
 
-    static create(ri: RemoteInvoke, path: string) {
+    static create(ri: RemoteInvoke, messageID: number, path: string) {
         const bom = new BroadcastOpenMessage();
 
         bom.path = path;
-        bom.messageID = ri._messageID++;
+        bom.messageID = messageID;
 
         return bom;
     }
@@ -656,11 +521,11 @@ export class BroadcastCloseMessage extends Message {
         return bcm;
     }
 
-    static create(ri: RemoteInvoke, path: string) {
+    static create(ri: RemoteInvoke, messageID: number, path: string) {
         const bcm = new BroadcastCloseMessage();
 
         bcm.path = path;
-        bcm.messageID = ri._messageID++;
+        bcm.messageID = messageID;
 
         return bcm;
     }
