@@ -59,15 +59,17 @@ export class RemoteInvoke {
     printError: boolean = true;
 
     constructor(socket: ConnectionSocket, moduleName: string) {
-        this._socket = socket;
-        this._socket._used = true;
         this.moduleName = moduleName;
 
+        if (socket.onMessage !== undefined)
+            throw new Error('传入的ConnectionSocket正在被其他的代码所使用');
+
+        this._socket = socket;
         this._socket.onMessage = (header, body) => {
             try {
                 var msg = parseMessageData(this, header, body);
             } catch (error) {
-                this._printError('解析消息异常', error);
+                this._printError('接收到消息格式错误：', error);
                 return;
             }
 
@@ -195,21 +197,68 @@ export class RemoteInvoke {
      * @param func 导出的方法 
      */
     export<F extends ExportFunction>(path: string, func: F) {
-        this._messageListener.receive([MessageType.invoke_request as any, path], async (msg: InvokeRequestMessage) => {   //[header, Body]
+        this._messageListener.receive([MessageType.invoke_request as any, path], async (msg: InvokeRequestMessage) => {
             try {
                 var files = msg.files.map(item => {
-                    let index = 0;  //现在接收到第几个文件片段了
+                    let start: boolean = false;  //是否已经开始获取了，主要是用于防止重复注册回调函数
 
                     const fileArg: ExportFunctionFileArgument = {
                         size: item.size,
                         splitNumber: item.splitNumber,
                         name: item.name,
-                        onData: (cb, startIndex) => { },
-                        getFile: () => { }
-                    }
-                });
-            } catch{
+                        onData: (cb, startIndex) => {
+                            start = true;
+                        },
+                        getFile: () => new Promise<Buffer>((resolve, reject) => {   //下载文件回调
+                            if (start) reject(new Error('不可重复下载文件')); else start = true;
 
+                            let index = 0;  //现在接收到第几个文件片段了
+                            let downloadedSize = 0;  //下载到的大小
+                            const filePieces: Buffer[] = [];    //下载到的文件片段
+
+                            this._messageListener.receive([
+                                MessageType.invoke_file_response as any,
+                                msg.requestMessageID as any,
+                                msg.sender,
+                                item.id as any
+                            ], (data: InvokeFileResponseMessage) => {
+                                if (data.index !== index)
+                                    reject('下载文件在传输过程中顺序发生错乱');
+
+                                filePieces.push(data.data);
+                                downloadedSize += data.data.length;
+
+                                if (item.size !== 0 && downloadedSize > item.size)
+                                    reject(new Error('下载到的真实文件大小超出了描述的大小'));
+
+                                if (item.splitNumber !== 0) {
+                                    if (index < item.splitNumber) {
+                                        const ifr = InvokeFileRequestMessage.create(this, msg, item.id, ++index);
+                                        const [header, body] = ifr.pack();
+                                        this._socket.send(header, body);
+                                    } else {
+                                        resolve(Buffer.concat(filePieces));
+                                        this._messageListener.cancel([
+                                            MessageType.invoke_file_response as any,
+                                            msg.requestMessageID as any,
+                                            msg.sender,
+                                            item.id as any
+                                        ]);
+                                    }
+                                } else {
+                                    const ifr = InvokeFileRequestMessage.create(this, msg, item.id, ++index);
+                                    const [header, body] = ifr.pack();
+                                    this._socket.send(header, body);
+                                }
+                            });
+                        })
+                    }
+
+                    return fileArg;
+                });
+            } catch (err) {
+                this._printError('接收到消息格式错误：解析消息文件异常', err);
+                return;
             }
 
             const result = await func(msg.data, files);

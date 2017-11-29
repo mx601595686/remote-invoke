@@ -1,11 +1,6 @@
 import { RemoteInvoke } from './RemoteInvoke';
 import { MessageType } from './../interfaces/MessageType';
-
-/**
- * 要发送的文件。既可以直接传递一个Buffer让系统自动分片发送也可以传递一个回调，动态发送。     
- * 回调函数：index 表示文件片段的序号,0 <= index 。返回void表示发送完成，已经没有更多数据需要发送了
- */
-export type sendingFile = Buffer | ((index: number) => Promise<Buffer | void>);
+import { sendingFile } from '../interfaces/SendingFile';
 
 /**
  * 解析消息

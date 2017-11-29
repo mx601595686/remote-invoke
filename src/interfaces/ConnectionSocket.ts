@@ -1,5 +1,6 @@
 /**
- * 消息传输端口。端口的启动、关闭、断开重连、登陆等都需自行处理，remote-invoke不负责这些问题。
+ * 消息传输端口。
+ * 端口的启动、关闭、断开重连、登陆等都需自行处理，remote-invoke不负责这些问题。
  */
 export interface ConnectionSocket {
 
@@ -14,9 +15,4 @@ export interface ConnectionSocket {
      * 这个回调方法由remote-invoke来进行注册。当收到消息后需要触发该方法
      */
     onMessage?: (header: string, body: Buffer) => void;
-
-    /**
-     * 内部使用，判断此端口是否已经有remote-Invoke绑定了
-     */
-    _used?: boolean;
 }
