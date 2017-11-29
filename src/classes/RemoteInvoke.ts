@@ -1,15 +1,37 @@
-import { MessageType } from './../interfaces/MessageType';
 import { EventSpace } from 'eventspace';
 import log from 'log-formatter';
 
+import { MessageType } from './../interfaces/MessageType';
 import { ConnectionSocket } from "../interfaces/ConnectionSocket";
 import { ExportFunction } from "../interfaces/ExportFunction";
+import {
+    parseMessageData,
+    MessageData,
+    InvokeRequestMessage,
+    InvokeResponseMessage,
+    InvokeFinishMessage,
+    InvokeFailedMessage,
+    InvokeFileRequestMessage,
+    InvokeFileResponseMessage,
+    InvokeFileFailedMessage,
+    InvokeFileFinishMessage,
+    BroadcastMessage,
+    BroadcastOpenMessage,
+    BroadcastOpenFinishMessage,
+    BroadcastCloseMessage,
+    BroadcastCloseFinishMessage
+} from './MessageData';
 
 export class RemoteInvoke {
 
     private readonly _socket: ConnectionSocket;   //连接端口
 
-    private readonly _messageListener = new EventSpace();  //注册的各类消息监听器  
+    private readonly _messageListener = new EventSpace();   //注册的各类消息监听器    
+
+    /**
+     * 自增消息索引编号（内部使用）
+     */
+    _messageID: number = 0;
 
     /**
      * 请求响应超时，默认3分钟
@@ -27,11 +49,6 @@ export class RemoteInvoke {
     readonly moduleName: string;
 
     /**
-     * 自增消息索引编号（内部使用）
-     */
-    _messageID: number = 0;    
-
-    /**
      * 是否打印收到和发送的消息（用于调试）。默认false
      */
     printMessage: boolean = false;
@@ -41,30 +58,121 @@ export class RemoteInvoke {
      */
     printError: boolean = true;
 
-
-
-
-
-    
     constructor(socket: ConnectionSocket, moduleName: string) {
         this._socket = socket;
         this._socket._used = true;
         this.moduleName = moduleName;
 
         this._socket.onMessage = (header, body) => {
+            let msg: MessageData;
 
             try {
-                const p_header = 
+                msg = parseMessageData(this, header, body);
             } catch (error) {
-                this._printError('接收到的消息格式错误。解析头部异常', error);
+                this._printError('解析消息异常', error);
+                return;
             }
-            switch (p_header.type) {
-                case value:
 
+            switch (msg.type) {
+                case MessageType.invoke_request:
+                    this._messageListener.trigger([
+                        msg.type as any,
+                        (<InvokeRequestMessage>msg).path    //调用地址
+                    ], msg);
                     break;
 
+                case MessageType.invoke_response:
+                    this._messageListener.trigger([
+                        msg.type as any,
+                        (<InvokeResponseMessage>msg).requestMessageID,
+                        (<InvokeResponseMessage>msg).sender //这里多加一个sender是为了防冒充
+                    ], msg);
+                    break;
 
-                default:
+                case MessageType.invoke_finish:
+                    this._messageListener.trigger([
+                        msg.type as any,
+                        (<InvokeFinishMessage>msg).responseMessageID,
+                        (<InvokeFinishMessage>msg).sender
+                    ], msg);
+                    break;
+
+                case MessageType.invoke_failed:
+                    this._messageListener.trigger([
+                        msg.type as any,
+                        (<InvokeFailedMessage>msg).requestMessageID,
+                        (<InvokeFailedMessage>msg).sender
+                    ], msg);
+                    break;
+
+                case MessageType.invoke_file_request:
+                    this._messageListener.trigger([
+                        msg.type as any,
+                        (<InvokeFileRequestMessage>msg).messageID,
+                        (<InvokeFileRequestMessage>msg).sender,
+                        (<InvokeFileRequestMessage>msg).id
+                    ], msg);
+                    break;
+
+                case MessageType.invoke_file_response:
+                    this._messageListener.trigger([
+                        msg.type as any,
+                        (<InvokeFileResponseMessage>msg).messageID,
+                        (<InvokeFileResponseMessage>msg).sender,
+                        (<InvokeFileResponseMessage>msg).id
+                    ], msg);
+                    break;
+
+                case MessageType.invoke_file_failed:
+                    this._messageListener.trigger([
+                        msg.type as any,
+                        (<InvokeFileFailedMessage>msg).messageID,
+                        (<InvokeFileFailedMessage>msg).sender,
+                        (<InvokeFileFailedMessage>msg).id
+                    ], msg);
+                    break;
+
+                case MessageType.invoke_file_finish:
+                    this._messageListener.trigger([
+                        msg.type as any,
+                        (<InvokeFileFinishMessage>msg).messageID,
+                        (<InvokeFileFinishMessage>msg).sender,
+                        (<InvokeFileFinishMessage>msg).id
+                    ], msg);
+                    break;
+
+                case MessageType.broadcast:
+                    this._messageListener.trigger([
+                        msg.type as any,
+                        (<BroadcastMessage>msg).sender,
+                        (<BroadcastMessage>msg).path
+                    ], msg);
+                    break;
+
+                case MessageType.broadcast_open:
+                    this._messageListener.trigger([
+                        msg.type as any
+                    ], msg);
+                    break;
+
+                case MessageType.broadcast_open_finish:
+                    this._messageListener.trigger([
+                        msg.type as any,
+                        (<BroadcastOpenFinishMessage>msg).messageID
+                    ], msg);
+                    break;
+
+                case MessageType.broadcast_close:
+                    this._messageListener.trigger([
+                        msg.type as any
+                    ], msg);
+                    break;
+
+                case MessageType.broadcast_close_finish:
+                    this._messageListener.trigger([
+                        msg.type as any,
+                        (<BroadcastCloseFinishMessage>msg).messageID
+                    ], msg);
                     break;
             }
         };
