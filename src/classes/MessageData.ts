@@ -1,6 +1,6 @@
 import { RemoteInvoke } from './RemoteInvoke';
 import { MessageType } from './../interfaces/MessageType';
-import { SendingFile } from '../interfaces/SendingFile';
+import { SendingFile } from '../interfaces/InvokeSendingData';
 
 /**
  * 所有消息的基类
@@ -73,7 +73,7 @@ export class InvokeRequestMessage extends MessageData {
         return irm;
     }
 
-    static create(ri: RemoteInvoke, messageID: number, receiver: string, path: string, data: any, files: { name: string, file: SendingFile }[] = []) {
+    static create(ri: RemoteInvoke, messageID: number, receiver: string, path: string, data: any, files: { name: string, file: SendingFile["file"] }[] = []) {
         const irm = new InvokeRequestMessage();
 
         irm.sender = ri.moduleName;
@@ -121,17 +121,17 @@ export class InvokeResponseMessage extends MessageData {
         irm.responseMessageID = p_body[1];
         irm.data = p_body[2];
         irm.files = p_body[3].map((item: any) => {
-                 //确保size与splitNumber的数据类型
-                 if ((Number.isInteger(item[1]) || item[1] === null) && (Number.isInteger(item[2]) || item[2] === null))
-                 return { id: item[0], size: item[1], splitNumber: item[2], name: item[3] };
-             else
-                 throw new Error('消息数据类型错误');
+            //确保size与splitNumber的数据类型
+            if ((Number.isInteger(item[1]) || item[1] === null) && (Number.isInteger(item[2]) || item[2] === null))
+                return { id: item[0], size: item[1], splitNumber: item[2], name: item[3] };
+            else
+                throw new Error('消息数据类型错误');
         });
 
         return irm;
     }
 
-    static create(ri: RemoteInvoke, rm: InvokeRequestMessage, messageID: number, data: any, files: { name: string, file: SendingFile }[] = []) {
+    static create(ri: RemoteInvoke, rm: InvokeRequestMessage, messageID: number, data: any, files: { name: string, file: SendingFile["file"] }[] = []) {
         const irm = new InvokeResponseMessage();
 
         irm.sender = ri.moduleName;
