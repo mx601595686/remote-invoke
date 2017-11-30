@@ -173,13 +173,17 @@ export class RemoteInvoke {
         const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
 
         const files = msg.files.map(item => {
-            let start: boolean = false;             //是否已经开始获取了，主要是用于防止重复注册回调函数
+            let start: boolean = false;             //是否已经开始获取了，主要是用于防止重复下载
             let index = -1;                         //现在接收到第几个文件片段了
             let downloadedSize = 0;                 //已下载大小
+            let timeout: NodeJS.Timer;              //超时计时器
 
             const downloadNext = () => {            //下载下一个文件片段
                 const result = InvokeFileRequestMessage.create(this, msg, item.id, ++index).pack();
-                this._socket.send(result[0], result[1]).catch(err => this._printError('消息发送失败', err));
+
+                timeout = setTimeout(() => cb_error(new Error('请求超时')), this.timeout);  //设置超时
+
+                this._socket.send(result[0], result[1]).catch(err => cb_error(new Error('网络连接异常：' + err)));
             };
 
             let cb_error: (err: Error) => void; //下载出错回调
@@ -187,6 +191,8 @@ export class RemoteInvoke {
 
             //监听下载到的文件
             this._messageListener.receive([MessageType.invoke_file_response, msg.sender, messageID, item.id] as any, (data: InvokeFileResponseMessage) => {
+                clearTimeout(timeout);
+
                 if (data.index !== index) {
                     cb_error(new Error('文件在传输过程中，顺序发生错乱'));
                     return;
@@ -203,11 +209,13 @@ export class RemoteInvoke {
 
             //监听下载文件失败
             this._messageListener.receive([MessageType.invoke_file_failed, msg.sender, messageID, item.id] as any, (data: InvokeFileFailedMessage) => {
+                clearTimeout(timeout);
                 cb_error(new Error(data.error));
             });
 
             //监听下载文件结束
             this._messageListener.receive([MessageType.invoke_file_finish, msg.sender, messageID, item.id] as any, (data: InvokeFileFinishMessage) => {
+                clearTimeout(timeout);
                 cb_receive(Buffer.alloc(0), true);
             });
 
@@ -248,6 +256,8 @@ export class RemoteInvoke {
         return {
             data: { data: msg.data, files },
             clear: () => { //清理资源
+                this._messageListener.trigger([MessageType.invoke_file_failed, msg.sender, messageID] as any, { error: '下载终止' });
+
                 this._messageListener.cancel([MessageType.invoke_file_response, msg.sender, messageID] as any);
                 this._messageListener.cancel([MessageType.invoke_file_failed, msg.sender, messageID] as any);
                 this._messageListener.cancel([MessageType.invoke_file_finish, msg.sender, messageID] as any);

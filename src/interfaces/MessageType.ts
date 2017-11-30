@@ -1,7 +1,4 @@
 //path格式：通过`/`来进行分割，最后一个是方法名，前面的称为命名空间，用于权限控制，例如"namespace/functionName"
-//接收到的真实文件大小应当与size一致
-
-
 
 /**
  * 传输消息的类型，也可以把它理解为状态码
@@ -29,7 +26,7 @@ export enum MessageType {
      *      ][]    
      * ]       
      * 
-     * 当把invoke_request发送出去之后调用者就开始倒计时，时长为3分钟，超过3分钟就判定请求超时。
+     * 当把invoke_request发送出去之后(不管消息现在是在缓冲队列中还是真的已经发出去了)，调用者就开始倒计时，时长为3分钟，超过3分钟就判定请求超时。
      * 如果中途收到了被调用者传回的invoke_file_request请求，那么就重置倒计时，这一过程直到收到被调用者传回的invoke_response或invoke_failed为止。
      */
     invoke_request,
@@ -51,7 +48,7 @@ export enum MessageType {
      *      files:[id:number, size:number|null, splitNumber:number|null, name:string][]    //反馈消息附带的文件       
      * ]       
      * 
-     * 如果返回的结果中包含文件，那么当把invoke_response发送出去之后，被调用者就开始倒计时，时长为3分钟，超过3分钟就直接结束响应。
+     * 如果返回的结果中包含文件，那么当把invoke_response发送出去之后(不管消息现在是在缓冲队列中还是真的已经发出去了)，被调用者就开始倒计时，时长为3分钟，超过3分钟就直接结束响应，清理资源。
      * 如果中途收到了调用者传回的invoke_file_request请求，那么就重置倒计时。这一过程直到收到调用者传回的invoke_finish为止。
      */
     invoke_response,
@@ -101,10 +98,13 @@ export enum MessageType {
      * ]       
      * body格式：       
      * [       
-     *      messageID:number    //消息编号（请求时是requestMessageID，回应时是responseMessageID）       
+     *      messageID:number    //消息编号（请求时是requestMessageID，响应时是responseMessageID）       
      *      id:number           //文件编号    
      *      index:number        //文件片段索引。注意：之前请求过的片段不允许重复请求，请求的索引编号应当一次比一次大，否则会被当成传输错误。    
      * ]     
+     * 
+     * 当把invoke_file_request发送出去之后(不管消息现在是在缓冲队列中还是真的已经发出去了)，发送者就开始倒计时，时长为3分钟，超过3分钟就判定请求超时。
+     * 这一过程直到收到接收者传回的invoke_file_response或invoke_file_failed或invoke_file_finish为止。    
      */
     invoke_file_request,
 
@@ -124,6 +124,11 @@ export enum MessageType {
      *      index:number        //文件片段索引编号    
      *      data:Buffer         //文件片段内容（默认的一个文件片段的大小是512kb）    
      * ]     
+     * 
+     * 注意：文件的发送者应当确保不允许接收者重复下载某一文件。    
+     * 注意：文件的接收者应当验证     
+     * 1.文件在传输过程中，顺序(index)是否发生错乱，正确的应当是后一个index比前一个大1       
+     * 2.下载到的真实文件大小应当等于发送者所描述的大小
      */
     invoke_file_response,
 
