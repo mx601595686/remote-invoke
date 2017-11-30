@@ -167,7 +167,7 @@ export class RemoteInvoke {
     }
 
     /**
-     * 预先配置好下载回调。
+     * 准备好下载回调。
      */
     private _prepare_InvokeReceivingData(msg: InvokeRequestMessage | InvokeResponseMessage) {
         const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
@@ -266,9 +266,9 @@ export class RemoteInvoke {
     }
 
     /**
-     * 配置发送数据
+     * 准备发送数据
      */
-    private _prepare_InvokeSendingData(receiver: string, path: string, data: InvokeSendingData): Promise<void> {
+    private _prepare_InvokeSendingData(msg: InvokeRequestMessage | InvokeResponseMessage): Promise<void> {
         return new Promise((resolve, reject) => {
             const rm = InvokeRequestMessage.create(this, this._messageID++, receiver, path, data);
             const result = rm.pack();
@@ -283,7 +283,7 @@ export class RemoteInvoke {
      * 如果要向调用方反馈错误，直接 throw new Error() 即可
      * 
      * 注意：如果重复在同一path上导出，则后面的会覆盖掉前面的。    
-     * 注意：方法一旦执行结束那么就不能再获取客户端发来的文件了。     
+     * 注意：方法一旦执行结束，相关的下载任务就会被立即取消。     
      * @param path 所导出的路径
      * @param func 导出的方法 
      */
@@ -294,14 +294,9 @@ export class RemoteInvoke {
             const { data, clear } = this._prepare_InvokeReceivingData(msg);
 
             try {
-                const result = await func(data);
-
-                if (result == null) {
-                    const result = InvokeResponseMessage.create(this, msg, this._messageID++, { data: null }).pack();
-                    this._socket.send(result[0], result[1]).catch(err => this._printError('消息发送失败', err));
-                } else {
-                    this._prepare_InvokeSendingData(msg.sender, ).catch(err => this._printError('消息发送失败', err));
-                }
+                const result = await func(data) || { data: null };
+                const rm = InvokeResponseMessage.create(this, msg, this._messageID++, result);
+                this._prepare_InvokeSendingData(rm).catch(err => this._printError('消息发送失败', err));
             } catch (error) {
                 const result = InvokeFailedMessage.create(this, msg, error).pack();
                 this._socket.send(result[0], result[1]).catch(err => this._printError('消息发送失败', err));
