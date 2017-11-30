@@ -167,7 +167,7 @@ export class RemoteInvoke {
     }
 
     /**
-     * 预先配置好下载文件回调。
+     * 预先配置好下载回调。
      */
     private _prepare_InvokeReceivingData(msg: InvokeRequestMessage | InvokeResponseMessage) {
         const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
@@ -188,7 +188,7 @@ export class RemoteInvoke {
             //监听下载到的文件
             this._messageListener.receive([MessageType.invoke_file_response, msg.sender, messageID, item.id] as any, (data: InvokeFileResponseMessage) => {
                 if (data.index !== index) {
-                    cb_error(new Error('文件在下载传输过程中，顺序发生错乱'));
+                    cb_error(new Error('文件在传输过程中，顺序发生错乱'));
                     return;
                 }
 
@@ -228,17 +228,17 @@ export class RemoteInvoke {
                 },
                 getFile: () => new Promise<Buffer>((resolve, reject) => {   //下载文件回调
                     if (start) {
-                        reject(new Error('不可重复下载文件')); return;
-                    } else
+                        reject(new Error('不可重复下载文件'));
+                    } else {
                         start = true;
+                        const filePieces: Buffer[] = [];    //下载到的文件片段
 
-                    const filePieces: Buffer[] = [];    //下载到的文件片段
-
-                    cb_error = reject;
-                    cb_receive = (data, isEnd) => {
-                        filePieces.push(data);
-                        if (isEnd) resolve(Buffer.concat(filePieces));
-                    };
+                        cb_error = reject;
+                        cb_receive = (data, isEnd) => {
+                            filePieces.push(data);
+                            if (isEnd) resolve(Buffer.concat(filePieces));
+                        };
+                    }
                 })
             }
 
@@ -256,6 +256,19 @@ export class RemoteInvoke {
     }
 
     /**
+     * 配置发送数据
+     */
+    private _prepare_InvokeSendingData(receiver: string, path: string, data: InvokeSendingData): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const rm = InvokeRequestMessage.create(this, this._messageID++, receiver, path, data);
+            const result = rm.pack();
+
+            if (rm.files.length === 0)  //不带文件
+                this._socket.send(result[0], result[1])
+        });
+    }
+
+    /**
      * 对外导出方法。     
      * 如果要向调用方反馈错误，直接 throw new Error() 即可
      * 
@@ -267,17 +280,17 @@ export class RemoteInvoke {
     export<F extends (data: InvokeReceivingData) => Promise<void | InvokeSendingData>>(path: string, func: F) {
         this.cancelExport(path);
 
-        this._messageListener.receive([MessageType.invoke_request as any, path], async (msg: InvokeRequestMessage) => {
+        this._messageListener.receive([MessageType.invoke_request, path] as any, async (msg: InvokeRequestMessage) => {
             const { data, clear } = this._prepare_InvokeReceivingData(msg);
 
             try {
                 const result = await func(data);
 
                 if (result == null) {
-                    const result = InvokeResponseMessage.create(this, msg, this._messageID++, null).pack();
+                    const result = InvokeResponseMessage.create(this, msg, this._messageID++, { data: null }).pack();
                     this._socket.send(result[0], result[1]).catch(err => this._printError('消息发送失败', err));
                 } else {
-
+                    this._prepare_InvokeSendingData(msg.sender, ).catch(err => this._printError('消息发送失败', err));
                 }
             } catch (error) {
                 const result = InvokeFailedMessage.create(this, msg, error).pack();
@@ -295,8 +308,6 @@ export class RemoteInvoke {
      * @param path 之前导出的路径
      */
     cancelExport(path: string) {
-        this._messageListener.cancel([MessageType.invoke_request as any, path]);
+        this._messageListener.cancel([MessageType.invoke_request, path] as any);
     }
-
-
 }

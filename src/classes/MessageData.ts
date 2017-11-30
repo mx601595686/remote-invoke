@@ -1,6 +1,6 @@
 import { RemoteInvoke } from './RemoteInvoke';
 import { MessageType } from './../interfaces/MessageType';
-import { SendingFile } from '../interfaces/InvokeSendingData';
+import { InvokeSendingData } from '../interfaces/InvokeSendingData';
 
 /**
  * 所有消息的基类
@@ -73,15 +73,15 @@ export class InvokeRequestMessage extends MessageData {
         return irm;
     }
 
-    static create(ri: RemoteInvoke, messageID: number, receiver: string, path: string, data: any, files: { name: string, file: SendingFile["file"] }[] = []) {
+    static create(ri: RemoteInvoke, messageID: number, receiver: string, path: string, data: InvokeSendingData) {
         const irm = new InvokeRequestMessage();
 
         irm.sender = ri.moduleName;
         irm.receiver = receiver;
         irm.path = path;
         irm.requestMessageID = messageID;
-        irm.data = data;
-        irm.files = files.map((item, index) =>
+        irm.data = data.data;
+        irm.files = data.files == null ? [] : data.files.map((item, index) =>
             Buffer.isBuffer(item.file) ?
                 { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / ri.filePieceSize), name: item.name } :
                 { id: index, size: null, splitNumber: null, name: item.name }
@@ -131,15 +131,15 @@ export class InvokeResponseMessage extends MessageData {
         return irm;
     }
 
-    static create(ri: RemoteInvoke, rm: InvokeRequestMessage, messageID: number, data: any, files: { name: string, file: SendingFile["file"] }[] = []) {
+    static create(ri: RemoteInvoke, rm: InvokeRequestMessage, messageID: number, data: InvokeSendingData) {
         const irm = new InvokeResponseMessage();
 
         irm.sender = ri.moduleName;
         irm.receiver = rm.sender;
         irm.requestMessageID = rm.requestMessageID;
         irm.responseMessageID = messageID;
-        irm.data = data;
-        irm.files = files.map((item, index) =>
+        irm.data = data.data;
+        irm.files = data.files == null ? [] : data.files.map((item, index) =>
             Buffer.isBuffer(item.file) ?
                 { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / ri.filePieceSize), name: item.name } :
                 { id: index, size: null, splitNumber: null, name: item.name }
