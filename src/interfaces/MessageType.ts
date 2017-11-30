@@ -128,7 +128,7 @@ export enum MessageType {
     invoke_file_response,
 
     /**
-     * 获取文件片段失败       
+     * 通知请求者,获取文件片段失败       
      * 
      * 头部格式：       
      * [       
@@ -146,7 +146,7 @@ export enum MessageType {
     invoke_file_failed,
 
     /**
-     * 通知请求者所请求的文件片段index已经超出了范围（表示文件传输完成）。主要是针对于发送不确定大小文件而准备的。
+     * 通知请求者,所请求的文件片段index已经超出了范围（表示文件传输完成）。主要是针对于发送不确定大小文件而准备的。
     * 
      * 头部格式：       
      * [       

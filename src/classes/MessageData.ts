@@ -5,7 +5,7 @@ import { SendingFile } from '../interfaces/SendingFile';
 /**
  * 所有消息的基类
  */
-export abstract class Message {
+export abstract class MessageData {
 
     abstract type: MessageType;
 
@@ -21,19 +21,19 @@ export abstract class Message {
      * @param header 已近被JSON.parse后的消息头部
      * @param body 消息body
      */
-    static parse(ri: RemoteInvoke, header: any[], body: Buffer): Message {
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer): MessageData {
         throw new Error('未实现解析方法');
     }
 
     /**
      * 创建消息
      */
-    static create(ri: RemoteInvoke, ...args: any[]): Message {
+    static create(ri: RemoteInvoke, ...args: any[]): MessageData {
         throw new Error('未实现创建方法');
     }
 }
 
-export class InvokeRequestMessage extends Message {
+export class InvokeRequestMessage extends MessageData {
 
     type = MessageType.invoke_request;
     sender: string;
@@ -62,7 +62,13 @@ export class InvokeRequestMessage extends Message {
         const p_body = JSON.parse(body.toString());
         irm.requestMessageID = p_body[0];
         irm.data = p_body[1];
-        irm.files = p_body[2].map((item: any) => ({ id: item[0], size: item[1], splitNumber: item[2], name: item[3] }));
+        irm.files = p_body[2].map((item: any) => {
+            //确保size与splitNumber的数据类型
+            if ((Number.isInteger(item[1]) || item[1] === null) && (Number.isInteger(item[2]) || item[2] === null))
+                return { id: item[0], size: item[1], splitNumber: item[2], name: item[3] };
+            else
+                throw new Error('消息数据类型错误');
+        });
 
         return irm;
     }
@@ -85,7 +91,7 @@ export class InvokeRequestMessage extends Message {
     }
 }
 
-export class InvokeResponseMessage extends Message {
+export class InvokeResponseMessage extends MessageData {
 
     type = MessageType.invoke_response;
     sender: string;
@@ -114,7 +120,13 @@ export class InvokeResponseMessage extends Message {
         irm.requestMessageID = p_body[0];
         irm.responseMessageID = p_body[1];
         irm.data = p_body[2];
-        irm.files = p_body[3].map((item: any) => ({ id: item[0], size: item[1], splitNumber: item[2], name: item[3] }));
+        irm.files = p_body[3].map((item: any) => {
+                 //确保size与splitNumber的数据类型
+                 if ((Number.isInteger(item[1]) || item[1] === null) && (Number.isInteger(item[2]) || item[2] === null))
+                 return { id: item[0], size: item[1], splitNumber: item[2], name: item[3] };
+             else
+                 throw new Error('消息数据类型错误');
+        });
 
         return irm;
     }
@@ -137,7 +149,7 @@ export class InvokeResponseMessage extends Message {
     }
 }
 
-export class InvokeFinishMessage extends Message {
+export class InvokeFinishMessage extends MessageData {
 
     type = MessageType.invoke_finish;
     sender: string;
@@ -175,7 +187,7 @@ export class InvokeFinishMessage extends Message {
     }
 }
 
-export class InvokeFailedMessage extends Message {
+export class InvokeFailedMessage extends MessageData {
 
     type = MessageType.invoke_failed;
     sender: string;
@@ -217,7 +229,7 @@ export class InvokeFailedMessage extends Message {
     }
 }
 
-export class InvokeFileRequestMessage extends Message {
+export class InvokeFileRequestMessage extends MessageData {
 
     type = MessageType.invoke_file_request;
     sender: string;
@@ -262,7 +274,7 @@ export class InvokeFileRequestMessage extends Message {
     }
 }
 
-export class InvokeFileResponseMessage extends Message {
+export class InvokeFileResponseMessage extends MessageData {
 
     type = MessageType.invoke_file_response;
     sender: string;
@@ -315,7 +327,7 @@ export class InvokeFileResponseMessage extends Message {
     }
 }
 
-export class InvokeFileFailedMessage extends Message {
+export class InvokeFileFailedMessage extends MessageData {
 
     type = MessageType.invoke_file_failed;
     sender: string;
@@ -360,7 +372,7 @@ export class InvokeFileFailedMessage extends Message {
     }
 }
 
-export class InvokeFileFinishMessage extends Message {
+export class InvokeFileFinishMessage extends MessageData {
 
     type = MessageType.invoke_file_finish;
     sender: string;
@@ -402,7 +414,7 @@ export class InvokeFileFinishMessage extends Message {
     }
 }
 
-export class BroadcastMessage extends Message {
+export class BroadcastMessage extends MessageData {
 
     type = MessageType.broadcast;
     sender: string;
@@ -438,7 +450,7 @@ export class BroadcastMessage extends Message {
     }
 }
 
-export class BroadcastOpenMessage extends Message {
+export class BroadcastOpenMessage extends MessageData {
 
     type = MessageType.broadcast_open;
     path: string;
@@ -470,7 +482,7 @@ export class BroadcastOpenMessage extends Message {
     }
 }
 
-export class BroadcastOpenFinishMessage extends Message {
+export class BroadcastOpenFinishMessage extends MessageData {
 
     type = MessageType.broadcast_open_finish;
     messageID: number;
@@ -499,7 +511,7 @@ export class BroadcastOpenFinishMessage extends Message {
     }
 }
 
-export class BroadcastCloseMessage extends Message {
+export class BroadcastCloseMessage extends MessageData {
 
     type = MessageType.broadcast_close;
     path: string;
@@ -531,7 +543,7 @@ export class BroadcastCloseMessage extends Message {
     }
 }
 
-export class BroadcastCloseFinishMessage extends Message {
+export class BroadcastCloseFinishMessage extends MessageData {
 
     type = MessageType.broadcast_close_finish;
     messageID: number;
