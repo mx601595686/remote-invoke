@@ -156,10 +156,10 @@ export class RemoteInvoke {
      */
     private _printError(desc: string, err: Error) {
         if (this.printError)
-            log.error
+            log.warn
                 .location.white
-                .title.red
-                .content.red('remote-invoke', desc, err);
+                .title.yellow
+                .content.yellow('remote-invoke', desc, err);
     }
 
     /**
@@ -289,7 +289,7 @@ export class RemoteInvoke {
      * @param path 所导出的路径
      * @param func 导出的方法 
      */
-    export<F extends (data: InvokeReceivingData) => Promise<void | InvokeSendingData>>(path: string, func: F) {
+    export<F extends (data: InvokeReceivingData) => Promise<void | InvokeSendingData>>(path: string, func: F): F {
         this.cancelExport(path);
 
         this._messageListener.receive([MessageType.invoke_request, path] as any, async (msg: InvokeRequestMessage) => {
@@ -316,5 +316,32 @@ export class RemoteInvoke {
      */
     cancelExport(path: string) {
         this._messageListener.cancel([MessageType.invoke_request, path] as any);
+    }
+
+    /**
+     * 注册广播监听器      
+     * 
+     * 注意：如果重复在同一path上注册，则后面的会覆盖掉前面的。    
+     * @param sender 发送者
+     * @param name 广播的路径
+     * @param func 对应的回调方法
+     */
+    receive<F extends (arg: any) => void>(sender: string, path: string, func: F): F {
+        this.cancelReceive(sender, path);
+
+        this._messageListener.receive([MessageType.broadcast, sender, path] as any, (data: BroadcastMessage) => {
+
+        });
+
+        return func;
+    }
+
+    /**
+     * 删除广播监听器    
+     * @param sender 发送者
+     * @param name 广播的路径
+     */
+    cancelReceive(sender: string, path: string) {
+        this._messageListener.cancel([MessageType.broadcast, sender, path] as any);
     }
 }
