@@ -192,7 +192,7 @@ export enum MessageType {
      * 头部格式：       
      * [       
      *      type = broadcast    //消息类型       
-     *      sender:string       //发送者       
+     *      sender:string       //广播的发送者       
      *      path:string         //广播的路径         
      * ]       
      * body格式：       
@@ -208,11 +208,12 @@ export enum MessageType {
      * 头部格式：       
      * [       
      *      type = broadcast_open    //消息类型       
-     *      path:string              //广播的路径         
      * ]    
      * body格式：       
      * [       
-     *      messageID:number    //消息编号       
+     *      messageID:number         //消息编号       
+     *      broadcastSender:string   //广播的发送者      
+     *      path:string              //广播的路径         
      * ]     
      */
     broadcast_open,
@@ -237,11 +238,12 @@ export enum MessageType {
      * 头部格式：       
      * [       
      *      type = broadcast_close    //消息类型       
-     *      path:string               //广播的路径         
      * ]       
      * body格式：       
      * [       
-     *      messageID:number    //消息编号       
+     *      messageID:number          //消息编号       
+     *      broadcastSender:string    //广播的发送者      
+     *      path:string               //广播的路径         
      * ]     
      */
     broadcast_close,

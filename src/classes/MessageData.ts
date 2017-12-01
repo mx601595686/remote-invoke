@@ -453,30 +453,34 @@ export class BroadcastMessage extends MessageData {
 export class BroadcastOpenMessage extends MessageData {
 
     type = MessageType.broadcast_open;
-    path: string;
     messageID: number;
+    broadcastSender: string;   //广播的发送者  
+    path: string;              //广播的路径
 
     pack(): [string, Buffer] {
         return [
-            JSON.stringify([this.type, null, null, this.path]),
-            Buffer.from(this.messageID.toString())
+            JSON.stringify([this.type]),
+            Buffer.from(JSON.stringify([this.messageID, this.broadcastSender, this.path]))
         ];
     }
 
     static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
         const bom = new BroadcastOpenMessage();
 
-        bom.path = header[3];
-        bom.messageID = Number.parseInt(body.toString());
+        const p_body = JSON.parse(body.toString());
+        bom.messageID = p_body[0];
+        bom.broadcastSender = p_body[1];
+        bom.path = p_body[2];
 
         return bom;
     }
 
-    static create(ri: RemoteInvoke, messageID: number, path: string) {
+    static create(ri: RemoteInvoke, messageID: number, broadcastSender: string, path: string) {
         const bom = new BroadcastOpenMessage();
 
-        bom.path = path;
         bom.messageID = messageID;
+        bom.broadcastSender = broadcastSender;
+        bom.path = path;
 
         return bom;
     }
@@ -514,30 +518,34 @@ export class BroadcastOpenFinishMessage extends MessageData {
 export class BroadcastCloseMessage extends MessageData {
 
     type = MessageType.broadcast_close;
-    path: string;
     messageID: number;
+    broadcastSender: string;   //广播的发送者  
+    path: string;              //广播的路径
 
     pack(): [string, Buffer] {
         return [
-            JSON.stringify([this.type, null, null, this.path]),
-            Buffer.from(this.messageID.toString())
+            JSON.stringify([this.type]),
+            Buffer.from(JSON.stringify([this.messageID, this.broadcastSender, this.path]))
         ];
     }
 
     static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
         const bcm = new BroadcastCloseMessage();
 
-        bcm.path = header[3];
-        bcm.messageID = Number.parseInt(body.toString());
+        const p_body = JSON.parse(body.toString());
+        bcm.messageID = p_body[0];
+        bcm.broadcastSender = p_body[1];
+        bcm.path = p_body[2];
 
         return bcm;
     }
 
-    static create(ri: RemoteInvoke, messageID: number, path: string) {
+    static create(ri: RemoteInvoke, messageID: number, broadcastSender: string, path: string) {
         const bcm = new BroadcastCloseMessage();
 
-        bcm.path = path;
         bcm.messageID = messageID;
+        bcm.broadcastSender = broadcastSender;
+        bcm.path = path;
 
         return bcm;
     }
