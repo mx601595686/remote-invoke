@@ -12,7 +12,6 @@ export abstract class MessageData {
 
     /**
      * 打包这条消息。返回[消息头部，消息body]       
-     * 注意：打包后的头部是一个数组，数组的第一项总是type，如果还有那么第二项就是sender，第三项就是receiver，第四项就是path
      */
     abstract pack(): [string, Buffer];
 

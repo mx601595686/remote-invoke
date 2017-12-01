@@ -220,15 +220,18 @@ export class RemoteInvoke {
                 splitNumber: item.splitNumber,
                 name: item.name,
                 onData: (callback, startIndex = 0) => {
-                    if (start)
+                    if (start) {
                         (<any>callback)(new Error('不可重复下载文件'));
-                    else {
+                    } else {
                         start = true;
                         index = startIndex - 1;
 
                         cb_error = callback as any;
                         cb_receive = (data, isEnd) => {
-                            callback(undefined, isEnd, index, data).then(result => result !== true && downloadNext());
+                            if (isEnd)
+                                callback(undefined, isEnd, index, data);
+                            else
+                                callback(undefined, isEnd, index, data).then(result => result !== true && downloadNext());
                         };
 
                         downloadNext();
@@ -327,14 +330,14 @@ export class RemoteInvoke {
      * @param func 对应的回调方法
      */
     receive<F extends (arg: any) => any>(sender: string, path: string, func: F): F {
-        
+
         this.cancelReceive(sender, path);
 
         this._messageListener.receive([MessageType.broadcast, sender, path] as any, (data: BroadcastMessage) => {
             setTimeout(func, 0, data.data); //这里不直接调用是考虑到try-catch的问题
         });
 
-        
+
         const result = InvokeFailedMessage.create(this, msg, error).pack();
         this._socket.send(result[0], result[1]).catch(err => {/* this._printError('发送InvokeFailedMessage失败', err) */ });
 

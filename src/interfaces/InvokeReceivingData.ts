@@ -4,7 +4,6 @@
 export interface ReceivingFile {
     /**
      * 文件大小 (byte)。如果文件大小不确定则为null。      
-     * 注意：如果不为null，则系统会确保收到的 文件大小 <= size
      */
     size: number | null;
 
