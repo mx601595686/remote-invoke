@@ -112,7 +112,7 @@ export class RemoteInvoke {
                     }
                     case MessageType.broadcast: {
                         const msg = BroadcastMessage.parse(this, p_header, body);
-                        this._messageListener.trigger([msg.type, msg.sender, msg.path] as any, msg);
+                        this._messageListener.trigger([msg.type, msg.sender, ...msg.path.split('.')] as any, msg);
 
                         break;
                     }
@@ -324,15 +324,12 @@ export class RemoteInvoke {
      * @param func 对应的回调方法
      */
     receive<F extends (arg: any) => any>(sender: string, path: string, func: F): F {
-
         this.cancelReceive(sender, path);
-
-        this._messageListener.receive([MessageType.broadcast, sender, path] as any, (data: BroadcastMessage) => {
+        this._messageListener.receive([MessageType.broadcast, sender, ...path.split('.')] as any, (data: BroadcastMessage) => {
             setTimeout(func, 0, data.data); //这里不直接调用是考虑到try-catch的问题
         });
 
-
-        const result = InvokeFailedMessage.create(this, msg, error).pack();
+        const result = BroadcastOpenMessage.create(this, this._messageID++, sender, path).pack();
         this._socket.send(result[0], result[1]).catch(err => {/* this._printError('发送InvokeFailedMessage失败', err) */ });
 
         return func;
@@ -344,6 +341,6 @@ export class RemoteInvoke {
      * @param name 广播的路径
      */
     cancelReceive(sender: string, path: string) {
-        this._messageListener.cancel([MessageType.broadcast, sender, path] as any);
+        this._messageListener.cancel([MessageType.broadcast, sender, ...path.split('.')] as any);
     }
 }

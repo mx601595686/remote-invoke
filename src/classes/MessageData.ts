@@ -472,6 +472,9 @@ export class BroadcastOpenMessage extends MessageData {
         bom.broadcastSender = p_body[1];
         bom.path = p_body[2];
 
+        if (bom.broadcastSender !== ri.moduleName)
+            throw new Error(`对方尝试打开不属于自己的广播。对方所期待的广播发送者:${bom.broadcastSender}`);
+
         return bom;
     }
 
@@ -536,6 +539,9 @@ export class BroadcastCloseMessage extends MessageData {
         bcm.messageID = p_body[0];
         bcm.broadcastSender = p_body[1];
         bcm.path = p_body[2];
+
+        if (bcm.broadcastSender !== ri.moduleName)
+            throw new Error(`对方尝试关闭不属于自己的广播。对方所期待的广播发送者:${bcm.broadcastSender}`);
 
         return bcm;
     }
