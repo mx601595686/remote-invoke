@@ -1,18 +1,26 @@
+import { RemoteInvoke } from './../classes/RemoteInvoke';
+
 /**
- * 消息传输端口。
+ * 消息传输端口的父类。
  * 端口的启动、关闭、断开重连、登陆等都需自行处理，remote-invoke不负责这些问题。
  */
-export interface ConnectionSocket {
+export class ConnectionSocket {
 
     /**
      * 发送消息
      * @param header 消息头部部分
      * @param body 消息body部分
      */
-    send(header: string, body: Buffer): Promise<void>;
+    send(header: string, body: Buffer): Promise<void> {
+        return Promise.reject('网络连接断开');
+    }
 
-    /**
-     * 这个回调方法由remote-invoke来进行注册。当收到消息后需要触发该方法
-     */
-    onMessage?: (header: string, body: Buffer) => void;
+    constructor(
+        protected ri: RemoteInvoke,
+
+        /**
+         * ConnectionSocket收到消息后需要执行的回调函数
+         */
+        protected onMessage: (header: string, body: Buffer) => void
+    ) { }
 }
