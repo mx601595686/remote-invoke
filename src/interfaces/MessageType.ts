@@ -1,9 +1,13 @@
-//path格式：通过`/`来进行分割，最后一个是方法名，前面的称为命名空间，用于权限控制，例如"namespace/functionName"
-
 /**
  * 传输消息的类型，也可以把它理解为状态码
  */
 export enum MessageType {
+    /**
+     * invoke的path格式：     
+     * invoke对path格式的格式没有要求，但推荐使用`/`来划分层级，最后一个为方法名，前面的称为命名空间，这样做是为了便于权限控制。
+     * 例如"namespace/functionName"
+     */
+
     /**
      * 调用者向被调用者发出调用请求       
      * 
@@ -166,6 +170,13 @@ export enum MessageType {
      * ]     
      */
     invoke_file_finish,
+
+    /**
+     * broadcast的path格式：     
+     * broadcast对path格式的格式有特殊要求，path通过"."来划分层级，注册在上级的监听器可以收到所有发给其下级的广播。   
+     * 例如"namespace.a.b", 注册在"namespace.a"上的监听器不仅可以收到path为"namespace.a"的广播，还可以收到path为"namespace.a.b"的广播。
+     * 同理，注册在"namespace"上的监听器可以收到"namespace"、"namespace.a"、"namespace.a.b"
+     */
 
     /**
      * 发送者对外发出广播

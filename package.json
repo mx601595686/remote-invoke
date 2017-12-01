@@ -47,7 +47,7 @@
     "@types/component-emitter": "^1.2.6",
     "binary-ws": "^1.1.1",
     "component-emitter": "^1.2.1",
-    "eventspace": "^1.1.0",
+    "eventspace": "^1.2.0",
     "log-formatter": "^0.1.5"
   }
 }

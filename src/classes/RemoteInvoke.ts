@@ -326,12 +326,17 @@ export class RemoteInvoke {
      * @param name 广播的路径
      * @param func 对应的回调方法
      */
-    receive<F extends (arg: any) => void>(sender: string, path: string, func: F): F {
+    receive<F extends (arg: any) => any>(sender: string, path: string, func: F): F {
+        
         this.cancelReceive(sender, path);
 
         this._messageListener.receive([MessageType.broadcast, sender, path] as any, (data: BroadcastMessage) => {
-
+            setTimeout(func, 0, data.data); //这里不直接调用是考虑到try-catch的问题
         });
+
+        
+        const result = InvokeFailedMessage.create(this, msg, error).pack();
+        this._socket.send(result[0], result[1]).catch(err => {/* this._printError('发送InvokeFailedMessage失败', err) */ });
 
         return func;
     }
