@@ -1,4 +1,4 @@
-import { RemoteInvoke } from './../classes/RemoteInvoke';
+import { RemoteInvoke } from './RemoteInvoke';
 
 /**
  * 消息传输端口的父类。

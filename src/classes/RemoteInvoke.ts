@@ -2,7 +2,7 @@ import { EventSpace } from 'eventspace';
 import log from 'log-formatter';
 
 import { MessageType } from './../interfaces/MessageType';
-import { ConnectionSocket } from "../interfaces/ConnectionSocket";
+import { ConnectionSocket } from "./ConnectionSocket";
 import { InvokeReceivingData, ReceivingFile } from '../interfaces/InvokeReceivingData';
 import { InvokeSendingData } from '../interfaces/InvokeSendingData';
 import {
@@ -54,14 +54,10 @@ export class RemoteInvoke {
      */
     printError: boolean = true;
 
-    constructor(socket: ConnectionSocket, moduleName: string) {
+    constructor(socket: typeof ConnectionSocket, moduleName: string) {
         this.moduleName = moduleName;
-        this._socket = socket;
 
-        if (socket.onMessage !== undefined)
-            throw new Error('传入的ConnectionSocket的onMessage已经被占用');
-
-        this._socket.onMessage = (header, body) => {
+        this._socket = new socket(this, (header, body) => {
             try {
                 const p_header = JSON.parse(header);
 
@@ -148,9 +144,9 @@ export class RemoteInvoke {
                         throw new Error(`未知消息类型：${p_header}`);
                 }
             } catch (error) {
-                this._printError('接收到消息格式错误：', error);
+                this._printError('接收到的消息格式错误：', error);
             }
-        };
+        });
     }
 
     /**
@@ -223,15 +219,19 @@ export class RemoteInvoke {
                 size: item.size,
                 splitNumber: item.splitNumber,
                 name: item.name,
-                onData: (callback: any, startIndex = 0) => {
+                onData: (callback, startIndex = 0) => {
                     if (start)
-                        callback(new Error('不可重复下载文件'));
+                        (<any>callback)(new Error('不可重复下载文件'));
                     else {
                         start = true;
                         index = startIndex - 1;
 
-                        cb_error = callback;
-                        cb_receive = (data, isEnd) => callback(undefined, isEnd, index, data);
+                        cb_error = callback as any;
+                        cb_receive = (data, isEnd) => {
+                            callback(undefined, isEnd, index, data).then(result => result !== true && downloadNext());
+                        };
+
+                        downloadNext();
                     }
                 },
                 getFile: () => new Promise<Buffer>((resolve, reject) => {   //下载文件回调
@@ -244,8 +244,10 @@ export class RemoteInvoke {
                         cb_error = reject;
                         cb_receive = (data, isEnd) => {
                             filePieces.push(data);
-                            if (isEnd) resolve(Buffer.concat(filePieces));
+                            isEnd ? resolve(Buffer.concat(filePieces)) : downloadNext();
                         };
+
+                        downloadNext();
                     }
                 })
             }
@@ -268,13 +270,13 @@ export class RemoteInvoke {
     /**
      * 准备发送数据
      */
-    private _prepare_InvokeSendingData(msg: InvokeRequestMessage | InvokeResponseMessage): Promise<void> {
-        return new Promise((resolve, reject) => {
-            const rm = InvokeRequestMessage.create(this, this._messageID++, receiver, path, data);
-            const result = rm.pack();
+    private _prepare_InvokeSendingData(msg: InvokeRequestMessage | InvokeResponseMessage) {
+        return new Promise<void>((resolve, reject) => {
+            const result = msg.pack();
+            this._socket.send(result[0], result[1]);
 
-            if (rm.files.length === 0)  //不带文件
-                this._socket.send(result[0], result[1])
+            if (msg.files.length === 0)  //不带文件
+      
         });
     }
 
@@ -296,10 +298,10 @@ export class RemoteInvoke {
             try {
                 const result = await func(data) || { data: null };
                 const rm = InvokeResponseMessage.create(this, msg, this._messageID++, result);
-                this._prepare_InvokeSendingData(rm).catch(err => this._printError('消息发送失败', err));
+                this._prepare_InvokeSendingData(rm).catch(err => {/* this._printError('发送InvokeResponseMessage失败', err) */ });
             } catch (error) {
                 const result = InvokeFailedMessage.create(this, msg, error).pack();
-                this._socket.send(result[0], result[1]).catch(err => this._printError('消息发送失败', err));
+                this._socket.send(result[0], result[1]).catch(err => {/* this._printError('发送InvokeFailedMessage失败', err) */ });
             } finally {
                 clear();
             }

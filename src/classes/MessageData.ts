@@ -1,3 +1,4 @@
+import { SendingFile } from './../interfaces/InvokeSendingData';
 import { RemoteInvoke } from './RemoteInvoke';
 import { MessageType } from './../interfaces/MessageType';
 import { InvokeSendingData } from '../interfaces/InvokeSendingData';
@@ -41,7 +42,7 @@ export class InvokeRequestMessage extends MessageData {
     path: string;
     requestMessageID: number;
     data: any;
-    files: { id: number, size: number | null, splitNumber: number | null, name: string }[]
+    files: { id: number, size: number | null, splitNumber: number | null, name: string, _data?: SendingFile /* 内部发送文件时使用 */ }[]
 
     pack(): [string, Buffer] {
         return [
@@ -83,8 +84,8 @@ export class InvokeRequestMessage extends MessageData {
         irm.data = data.data;
         irm.files = data.files == null ? [] : data.files.map((item, index) =>
             Buffer.isBuffer(item.file) ?
-                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / ri.filePieceSize), name: item.name } :
-                { id: index, size: null, splitNumber: null, name: item.name }
+                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / ri.filePieceSize), name: item.name, _data: item } :
+                { id: index, size: null, splitNumber: null, name: item.name, _data: item }
         );
 
         return irm;
@@ -99,7 +100,7 @@ export class InvokeResponseMessage extends MessageData {
     requestMessageID: number;
     responseMessageID: number;
     data: any;
-    files: { id: number, size: number | null, splitNumber: number | null, name: string }[]
+    files: { id: number, size: number | null, splitNumber: number | null, name: string, _data?: SendingFile }[]
 
     pack(): [string, Buffer] {
         return [
@@ -141,8 +142,8 @@ export class InvokeResponseMessage extends MessageData {
         irm.data = data.data;
         irm.files = data.files == null ? [] : data.files.map((item, index) =>
             Buffer.isBuffer(item.file) ?
-                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / ri.filePieceSize), name: item.name } :
-                { id: index, size: null, splitNumber: null, name: item.name }
+                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / ri.filePieceSize), name: item.name, _data: item } :
+                { id: index, size: null, splitNumber: null, name: item.name, _data: item }
         );
 
         return irm;
