@@ -286,15 +286,11 @@ export class RemoteInvoke {
     /**
      * 对外导出方法。     
      * 如果要向调用方反馈错误，直接 throw new Error() 即可
-     * 
-     * 注意：如果重复在同一path上导出，则后面的会覆盖掉前面的。    
-     * 注意：方法一旦执行结束，相关的下载任务就会被立即取消。     
      * @param path 所导出的路径
      * @param func 导出的方法 
      */
     export<F extends (data: InvokeReceivingData) => Promise<void | InvokeSendingData>>(path: string, func: F): F {
         this.cancelExport(path);
-
         this._messageListener.receive([MessageType.invoke_request, path] as any, async (msg: InvokeRequestMessage) => {
             const { data, clear } = this._prepare_InvokeReceivingData(msg);
 
@@ -323,8 +319,6 @@ export class RemoteInvoke {
 
     /**
      * 注册广播监听器      
-     * 
-     * 注意：如果重复在同一path上注册，则后面的会覆盖掉前面的。    
      * @param sender 发送者
      * @param name 广播的路径
      * @param func 对应的回调方法
@@ -345,7 +339,7 @@ export class RemoteInvoke {
     }
 
     /**
-     * 删除广播监听器    
+     * 删除广播监听器
      * @param sender 发送者
      * @param name 广播的路径
      */
