@@ -4,14 +4,14 @@
 export enum MessageType {
     /**
      * 全局：
-     * 所有消息发送后，头部都会被打包成一个JSON数组，其顺序总是确保第一项是type，第二项是sender，第三项是receiver，第四项是path。
+     * 所有消息发送后，头部都会被打包成一个JSON数组，其顺序确保总是第一项是type，第二项是sender，第三项是receiver，第四项是path。
      */
 
     /**
      * invoke：     
      * 1.invoke对path格式的格式没有要求，但推荐使用`/`来划分层级，最后一个为方法名，前面的称为命名空间，这样做是为了便于权限控制。
      *   例如"namespace/functionName"
-     * 2.一个path上只允许导出一个方法。如果重复注册则后面的应该覆盖掉前面的。
+     * 2.一个path上只允许导出一个方法。如果重复导出则后面的应该覆盖掉前面的。
      */
 
     /**
@@ -182,8 +182,6 @@ export enum MessageType {
      * 1.broadcast对path格式的格式有特殊要求，path通过"."来划分层级，注册在上级的监听器可以收到所有发给其下级的广播。   
      *   例如"namespace.a.b", 注册在"namespace.a"上的监听器不仅可以收到path为"namespace.a"的广播，还可以收到path为"namespace.a.b"的广播。
      *   同理，注册在"namespace"上的监听器可以收到"namespace"、"namespace.a"、"namespace.a.b"。
-     * 2.注册监听器时，上级监听器会覆盖掉下级监听器，同级监听器，后注册的会覆盖掉之前注册的。
-     *   例如：先是在"namespace.a.b"注册了一个监听器，然后又在"namespace.a"注册了一个，则之前在"namespace.a.b"上注册的会被删除。
      */
 
     /**
