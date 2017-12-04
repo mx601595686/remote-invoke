@@ -1,6 +1,6 @@
-import { SendingFile } from './../interfaces/InvokeSendingData';
+import { SendingFile } from '../interfaces/InvokeSendingData';
 import { RemoteInvoke } from './RemoteInvoke';
-import { MessageType } from './../interfaces/MessageType';
+import { MessageType } from '../interfaces/MessageType';
 import { InvokeSendingData } from '../interfaces/InvokeSendingData';
 
 /**
@@ -60,7 +60,7 @@ export class InvokeRequestMessage extends MessageData {
             throw new Error(`收到了不属于自己的消息。sender：${irm.sender} ，receiver：${irm.receiver}`);
 
         if (irm.path.length > 256)
-            throw new Error('消息的path长度超出了规定的256');
+            throw new Error('消息的path长度超出了规定的256个字符');
 
         const p_body = JSON.parse(body.toString());
         irm.requestMessageID = p_body[0];
@@ -78,7 +78,7 @@ export class InvokeRequestMessage extends MessageData {
 
     static create(ri: RemoteInvoke, messageID: number, receiver: string, path: string, data: InvokeSendingData) {
         if (path.length > 256)
-            throw new Error('消息的path长度超出了规定的256');
+            throw new Error('消息的path长度超出了规定的256个字符');
 
         const irm = new InvokeRequestMessage();
 
@@ -441,7 +441,7 @@ export class BroadcastMessage extends MessageData {
         bm.path = header[3];
 
         if (bm.path.length > 256)
-            throw new Error('消息的path长度超出了规定的256');
+            throw new Error('消息的path长度超出了规定的256个字符');
 
         bm.data = JSON.parse(body.toString());
 
@@ -450,7 +450,7 @@ export class BroadcastMessage extends MessageData {
 
     static create(ri: RemoteInvoke, path: string, data: any) {
         if (path.length > 256)
-            throw new Error('消息的path长度超出了规定的256');
+            throw new Error('消息的path长度超出了规定的256个字符');
 
         const bm = new BroadcastMessage();
 
@@ -488,14 +488,14 @@ export class BroadcastOpenMessage extends MessageData {
             throw new Error(`对方尝试打开不属于自己的广播。对方所期待的广播发送者:${bom.broadcastSender}`);
 
         if (bom.path.length > 256)
-            throw new Error('消息的path长度超出了规定的256');
+            throw new Error('消息的path长度超出了规定的256个字符');
 
         return bom;
     }
 
     static create(ri: RemoteInvoke, messageID: number, broadcastSender: string, path: string) {
         if (path.length > 256)
-            throw new Error('消息的path长度超出了规定的256');
+            throw new Error('消息的path长度超出了规定的256个字符');
 
         const bom = new BroadcastOpenMessage();
 
@@ -562,14 +562,14 @@ export class BroadcastCloseMessage extends MessageData {
             throw new Error(`对方尝试关闭不属于自己的广播。对方所期待的广播发送者:${bcm.broadcastSender}`);
 
         if (bcm.path.length > 256)
-            throw new Error('消息的path长度超出了规定的256');
+            throw new Error('消息的path长度超出了规定的256个字符');
             
         return bcm;
     }
 
     static create(ri: RemoteInvoke, messageID: number, broadcastSender: string, path: string) {
         if (path.length > 256)
-            throw new Error('消息的path长度超出了规定的256');
+            throw new Error('消息的path长度超出了规定的256个字符');
 
         const bcm = new BroadcastCloseMessage();
 
