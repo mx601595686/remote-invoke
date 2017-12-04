@@ -4,7 +4,8 @@
 export enum MessageType {
     /**
      * 全局：
-     * 所有消息发送后，头部都会被打包成一个JSON数组，其顺序确保总是第一项是type，第二项是sender，第三项是receiver，第四项是path。
+     * 1.所有消息发送后，头部都会被打包成一个JSON数组，其顺序确保总是第一项是type，第二项是sender，第三项是receiver，第四项是path。
+     * 2.path的最大长度为256个Unicode字符
      */
 
     /**
