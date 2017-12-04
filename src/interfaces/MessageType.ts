@@ -183,6 +183,7 @@ export enum MessageType {
      * 1.broadcast对path格式的格式有特殊要求，path通过"."来划分层级，注册在上级的监听器可以收到所有发给其下级的广播。   
      *   例如"namespace.a.b", 注册在"namespace.a"上的监听器不仅可以收到path为"namespace.a"的广播，还可以收到path为"namespace.a.b"的广播。
      *   同理，注册在"namespace"上的监听器可以收到"namespace"、"namespace.a"、"namespace.a.b"。
+     * 2.一个path上只允许注册一个监听器。如果重复注册则后面的应该覆盖掉前面的。
      */
 
     /**
