@@ -244,7 +244,7 @@ export class RemoteInvoke {
                         start = true;
                         index = startIndex - 1;
 
-                        cb_error = callback as any;
+                        cb_error = err => { (<any>callback)(err); cb_error = () => { } };   //确保只触发一次
                         cb_receive = (data, isEnd) => {
                             if (isEnd)
                                 callback(undefined, isEnd, index, data);
@@ -303,7 +303,8 @@ export class RemoteInvoke {
 
     /**
      * 对外导出方法。     
-     * 如果要向调用方反馈错误，直接 throw new Error() 即可
+     * 如果要向调用方反馈错误，直接 throw new Error() 即可。
+     * 注意：对于导出方法，当它执行完后就不可以继续下载文件了。
      * @param path 所导出的路径
      * @param func 导出的方法 
      */
@@ -315,10 +316,10 @@ export class RemoteInvoke {
             try {
                 const result = await func(data) || { data: null };
                 const rm = InvokeResponseMessage.create(this, msg, this._messageID++, result);
-                this._prepare_InvokeSendingData(rm).catch(err => {/* this._printError('发送InvokeResponseMessage失败', err) */ });
+                this._prepare_InvokeSendingData(rm).catch(err => this._printError('发送调用响应失败', err));
             } catch (error) {
                 const result = InvokeFailedMessage.create(this, msg, error).pack();
-                this._socket.send(result[0], result[1]).catch(err => {/* this._printError('发送InvokeFailedMessage失败', err) */ });
+                this._socket.send(result[0], result[1]).catch(err => this._printError('发送调用失败响应失败', err));
             } finally {
                 clear();
             }
