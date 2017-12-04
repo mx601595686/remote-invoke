@@ -264,6 +264,9 @@ export class InvokeFileRequestMessage extends MessageData {
         ifr.id = p_body[1];
         ifr.index = p_body[2];
 
+        if (!Number.isSafeInteger(ifr.index))
+            throw new Error('数据类型错误');
+
         return ifr;
     }
 
@@ -315,6 +318,9 @@ export class InvokeFileResponseMessage extends MessageData {
         ifr.id = b_json[1];
         ifr.index = b_json[2];
         ifr.data = body.slice(4 + b_json_length);
+
+        if (!Number.isSafeInteger(ifr.index))
+            throw new Error('数据类型错误');
 
         return ifr;
     }
@@ -563,7 +569,7 @@ export class BroadcastCloseMessage extends MessageData {
 
         if (bcm.path.length > 256)
             throw new Error('消息的path长度超出了规定的256个字符');
-            
+
         return bcm;
     }
 
