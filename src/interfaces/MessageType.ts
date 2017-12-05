@@ -220,6 +220,10 @@ export enum MessageType {
      *      broadcastSender:string   //广播的发送者      
      *      path:string              //广播的路径         
      * ]     
+     * 
+     * 在下面两种情况下才需要发送该消息
+     * 1. 用户在新的路径上注册了广播
+     * 2. 当网络连接断开，重新连接之后，需要将之前注册过的再重新通知对方一遍。（一旦网络断开就需要重新注册）
      */
     broadcast_open,
 
@@ -250,6 +254,10 @@ export enum MessageType {
      *      broadcastSender:string    //广播的发送者      
      *      path:string               //广播的路径         
      * ]     
+     * 
+     * 在下面两种情况下才需要发送该消息
+     * 1. 用户在某条路径上已经没有注册的有广播监听器了
+     * 2. 当用户收到了自己没有注册过的广播的时候通知对方。
      */
     broadcast_close,
 

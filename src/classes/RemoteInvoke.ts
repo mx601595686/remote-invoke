@@ -4,7 +4,7 @@ import log from 'log-formatter';
 import { MessageType } from '../interfaces/MessageType';
 import { ConnectionSocket } from "./ConnectionSocket";
 import { InvokeReceivingData, ReceivingFile } from '../interfaces/InvokeReceivingData';
-import { InvokeSendingData } from '../interfaces/InvokeSendingData';
+import { InvokeSendingData, SendingFile } from '../interfaces/InvokeSendingData';
 import {
     InvokeRequestMessage,
     InvokeResponseMessage,
@@ -289,12 +289,51 @@ export class RemoteInvoke {
     }
 
     /**
-     * 准备发送数据
+     * 准备发送文件
+     * @param msg 要发送的数据
+     * @param onRequest 对方请求时的回调
      */
-    private _prepare_InvokeSendingData(msg: InvokeRequestMessage | InvokeResponseMessage) {
+    private _prepare_InvokeSendingData(msg: InvokeRequestMessage | InvokeResponseMessage, onRequest: () => void) {
+        const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
+
+        msg.files.forEach(item => {
+            let sendingData = item._data as SendingFile;
+            let index = 0;    //记录用户请求到了第几个文件片段了
+
+            this._messageListener.receive([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any, (data: InvokeFileRequestMessage) => {
+                onRequest();
+
+                if (data.index < index) {
+                    index = data.index;
+
+                }
+
+                if (Buffer.isBuffer(sendingData.file)) {
+                    if (index < (item.splitNumber as number)) {
+
+                    }
+                } else {
+
+                }
+                const result = InvokeFileFinishMessage.create(this, data, ).pack();
+
+                this._socket.send(result[0], result[1])
+                    .catch(err => this._printError('向对方发送文件失败', err));
+                const result = InvokeFileResponseMessage.create(this, data, ).pack();
+
+                this._socket.send(result[0], result[1])
+                    .catch(err => this._printError('向对方发送文件失败', err));
+            });
+        });
+
+
         return new Promise<void>((resolve, reject) => {
+            let timeout = setTimeout(() => reject('响应超时'), this.timeout);
+
             const result = msg.pack();
-            this._socket.send(result[0], result[1]);
+            this._socket.send(result[0], result[1]).catch(err => { clearTimeout(timeout); reject(err); });
+
+
 
             if (msg.files.length === 0)  //不带文件
       
@@ -303,8 +342,9 @@ export class RemoteInvoke {
 
     /**
      * 对外导出方法。     
-     * 如果要向调用方反馈错误，直接 throw new Error() 即可。
-     * 注意：对于导出方法，当它执行完后就不可以继续下载文件了。
+     * 如果要向调用方反馈错误，直接 throw new Error() 即可。     
+     * 注意：对于导出方法，当它执行完后就不可以再继续下载文件了。     
+     * 注意：一个path上只允许导出一个方法。如果重复导出则后面的应该覆盖掉前面的。     
      * @param path 所导出的路径
      * @param func 导出的方法 
      */
@@ -337,6 +377,36 @@ export class RemoteInvoke {
     }
 
     /**
+     * 调用远端模块导出的方法。直接返回被调用者返回的数据与文件
+     * @param receiver 远端模块的名称
+     * @param path 方法的路径
+     * @param data 要传递的数据
+     */
+    invoke(receiver: string, path: string, data: InvokeSendingData): Promise<{ data: any, files: { name: string, data: Buffer }[] }>
+    /**
+     * 调用远端模块导出的方法。
+     * @param receiver 远端模块的名称
+     * @param path 方法的路径
+     * @param data 要传递的数据
+     * @param callback 接收响应数据的回调。注意：一旦回调执行完成就不能再下载文件了。
+     */
+    invoke(receiver: string, path: string, data: InvokeSendingData, callback: (err: Error | undefined, data: InvokeReceivingData) => Promise<void>): void
+    invoke(receiver: string, path: string, data: InvokeSendingData, callback?: (err: Error | undefined, data: InvokeReceivingData) => Promise<void>): any {
+        const rm = InvokeRequestMessage.create(this, this._messageID++, receiver, path, data);
+        const sr = this._prepare_InvokeSendingData(rm);
+
+        if (callback) {   //回调函数版本
+            sr.catch(callback as any);
+
+        } else {
+            return new Promise((resolve, reject) => {
+                sr.catch(reject);
+
+            });
+        }
+    }
+
+    /**
      * 注册广播监听器      
      * @param sender 发送者
      * @param name 广播的路径
@@ -351,43 +421,45 @@ export class RemoteInvoke {
             const result = BroadcastOpenMessage.create(this, messageID, sender, path).pack();
 
             const interval = () => this._socket.send(result[0], result[1])  //发送通知消息
-                .catch(err => this._printError(`通知对方现在要接收指定路径广播失败。sender:${sender} path:${path}`, err));
+                .catch(err => this._printError(`通知对方现在要接收指定路径的广播失败。broadcastSender:${sender} path:${path}`, err));
 
             const timer = setInterval(interval, this.timeout);    //到了时间如果还没有收到对方响应就重新发送一次
 
             this._messageListener.receiveOnce([MessageType.broadcast_open_finish, messageID] as any, () => clearInterval(timer));
 
             interval();
-        } else
-            this._messageListener.cancel(eventName);
+        }
 
         this._messageListener.receive(eventName, (data: BroadcastMessage) => func(data.data));
         return func;
     }
 
     /**
-     * 删除广播监听器
+     * 删除指定路径上的所有广播监听器，可以传递一个listener来只删除一个特定的监听器
      * @param sender 发送者
      * @param name 广播的路径
+     * @param listener 要指定删除的监听器
      */
-    cancelReceive(sender: string, path: string) {
+    cancelReceive(sender: string, path: string, listener?: (arg: any) => any) {
         const eventName = [MessageType.broadcast, sender, ...path.split('.')] as any;
 
-        if (this._messageListener.has(eventName)) {  //如果有注册过，通知对方现在不再接收指定路径广播失败
-            const messageID = this._messageID++;
+        if (this._messageListener.has(eventName)) {  //确保真的有注册过再执行删除
+            this._messageListener.cancel(eventName, listener);
 
-            const result = BroadcastCloseMessage.create(this, messageID, sender, path).pack();
+            if (!this._messageListener.has(eventName)) {    //如果删光了，就通知对方不再接收了
+                const messageID = this._messageID++;
 
-            const interval = () => this._socket.send(result[0], result[1])  //发送通知消息
-                .catch(err => this._printError(`通知对方现在不再接收指定路径广播失败。sender:${sender} path:${path}`, err));
+                const result = BroadcastCloseMessage.create(this, messageID, sender, path).pack();
 
-            const timer = setInterval(interval, this.timeout);    //到了时间如果还没有收到对方响应就重新发送一次
+                const interval = () => this._socket.send(result[0], result[1])  //发送通知消息
+                    .catch(err => this._printError(`通知对方现在不再接收指定路径的广播失败。broadcastSender:${sender} path:${path}`, err));
 
-            this._messageListener.receiveOnce([MessageType.broadcast_close_finish, messageID] as any, () => clearInterval(timer));
+                const timer = setInterval(interval, this.timeout);    //到了时间如果还没有收到对方响应就重新发送一次
 
-            interval();
+                this._messageListener.receiveOnce([MessageType.broadcast_close_finish, messageID] as any, () => clearInterval(timer));
 
-            this._messageListener.cancel(eventName);
+                interval();
+            }
         }
     }
 

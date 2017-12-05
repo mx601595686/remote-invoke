@@ -44,7 +44,7 @@
     "webpack": "^3.6.0"
   },
   "dependencies": {
-    "binary-ws": "^1.1.1",
+    "binary-ws": "^1.1.2",
     "eventspace": "^2.0.0",
     "log-formatter": "^0.1.5"
   }
