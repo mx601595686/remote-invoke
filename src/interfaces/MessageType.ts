@@ -10,7 +10,7 @@ export enum MessageType {
 
     /**
      * invoke：     
-     * 1.invoke对path格式的格式没有要求，但推荐使用`/`来划分层级，最后一个为方法名，前面的称为命名空间，这样做是为了便于权限控制。
+     * 1.invoke对path的格式没有要求，但推荐使用`/`来划分层级，最后一个为方法名，前面的称为命名空间，这样做是为了便于权限控制。
      *   例如"namespace/functionName"
      * 2.一个path上只允许导出一个方法。如果重复导出则后面的应该覆盖掉前面的。
      */
@@ -32,7 +32,7 @@ export enum MessageType {
      *      files: [                    //消息附带的文件       
      *          id:number               //文件编号    
      *          size:number|null        //文件大小(byte)。如果文件大小不确定则为null    
-     *          splitNumber:number|null //文件被分割成了多少块。如果文件大小不确定则为null   
+     *          splitNumber:number|null //文件被分割成了多少块(范围是0 <= X < end)。如果文件大小不确定则为null   
      *          name:string             //文件名    
      *      ][]    
      * ]       
@@ -67,6 +67,7 @@ export enum MessageType {
     /**
      * 调用者接收完被调用者传回的文件之后，通知被调用者此次调用请求彻底结束。
      * 如果被调用者在invoke_response中没有返回文件则不需要返回该消息。
+     * 被调用者收到这条消息后就立即清理资源，不再响应关于这条消息的任何请求。
      * 
      * 头部格式：              
      * [       
@@ -82,7 +83,8 @@ export enum MessageType {
     invoke_finish,
 
     /**
-     * 被调用者在处理请求的过程中出现了错误,告知调用者错误的原因
+     * 被调用者在处理请求的过程中出现了错误,告知调用者错误的原因。
+     * 当把消息发出去之后被调用者就立即清理资源，不再响应关于这条消息的任何请求。
      * 
      * 头部格式：       
      * [       
@@ -136,7 +138,7 @@ export enum MessageType {
      *      data:Buffer         //文件片段内容（默认的一个文件片段的大小是512kb）    
      * ]     
      * 
-     * 注意：文件的发送者应当确保不允许接收者重复下载某一文件。    
+     * 注意：文件的发送者应当确保不允许接收者重复下载某一文件片段。    
      * 注意：文件的接收者应当验证     
      * 1.文件在传输过程中，顺序(index)是否发生错乱，正确的应当是后一个index比前一个大1       
      * 2.下载到的真实文件大小应当等于发送者所描述的大小
@@ -158,6 +160,8 @@ export enum MessageType {
      *      id:number           //文件编号      
      *      error:string        //要反馈的失败原因   
      * ]     
+     * 
+     * 注意：报错只发送一次，并且发送之后就立即清理相关资源，不允许再请求该文件了
      */
     invoke_file_failed,
 
@@ -175,15 +179,16 @@ export enum MessageType {
      *      messageID:number    //invoke_file_request的消息编号      
      *      id:number           //文件编号   
      * ]     
+     * 
+     * 注意：通知只发送一次，并且发送之后就立即清理相关资源，不允许再请求该文件了
      */
     invoke_file_finish,
 
     /**
      * broadcast：     
-     * 1.broadcast对path格式的格式有特殊要求，path通过"."来划分层级，注册在上级的监听器可以收到所有发给其下级的广播。   
+     * 1.broadcast对path的格式有特殊要求，path通过"."来划分层级，注册在上级的监听器可以收到所有发给其下级的广播。   
      *   例如"namespace.a.b", 注册在"namespace.a"上的监听器不仅可以收到path为"namespace.a"的广播，还可以收到path为"namespace.a.b"的广播。
      *   同理，注册在"namespace"上的监听器可以收到"namespace"、"namespace.a"、"namespace.a.b"。
-     * 2.一个path上只允许注册一个监听器。如果重复注册则后面的应该覆盖掉前面的。
      */
 
     /**

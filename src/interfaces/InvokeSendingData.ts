@@ -14,10 +14,12 @@ export interface SendingFile {
     file: Buffer | ((index: number) => Promise<Buffer | void>);
 
     /**
-     * 文件发送进度回调函数。0 <= progress <= 1        
-     * 注意：这个只有当file为Buffer时才有效
+     * 文件发送进度的回调函数。        
+     * 注意：这个只有当file为Buffer时才有效      
+     * @param err 发送时是否发生错误
+     * @param progress 文件发送的进度0 <= progress <= 1
      */
-    onProgress?: (progress: number) => void;
+    onProgress?: (err: Error | undefined, progress: number) => void;
 }
 
 /**

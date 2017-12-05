@@ -67,7 +67,7 @@ export class InvokeRequestMessage extends MessageData {
         irm.data = p_body[1];
         irm.files = p_body[2].map((item: any) => {
             //确保size与splitNumber的数据类型
-            if ((Number.isInteger(item[1]) || item[1] === null) && (Number.isInteger(item[2]) || item[2] === null))
+            if ((Number.isSafeInteger(item[1]) || item[1] === null) && (Number.isSafeInteger(item[2]) || item[2] === null))
                 return { id: item[0], size: item[1], splitNumber: item[2], name: item[3] };
             else
                 throw new Error('消息数据类型错误');
@@ -128,7 +128,7 @@ export class InvokeResponseMessage extends MessageData {
         irm.data = p_body[2];
         irm.files = p_body[3].map((item: any) => {
             //确保size与splitNumber的数据类型
-            if ((Number.isInteger(item[1]) || item[1] === null) && (Number.isInteger(item[2]) || item[2] === null))
+            if ((Number.isSafeInteger(item[1]) || item[1] === null) && (Number.isSafeInteger(item[2]) || item[2] === null))
                 return { id: item[0], size: item[1], splitNumber: item[2], name: item[3] };
             else
                 throw new Error('消息数据类型错误');
@@ -265,7 +265,7 @@ export class InvokeFileRequestMessage extends MessageData {
         ifr.index = p_body[2];
 
         if (!Number.isSafeInteger(ifr.index))
-            throw new Error('数据类型错误');
+            throw new Error('文件片段索引数据类型错误');
 
         return ifr;
     }
@@ -320,7 +320,7 @@ export class InvokeFileResponseMessage extends MessageData {
         ifr.data = body.slice(4 + b_json_length);
 
         if (!Number.isSafeInteger(ifr.index))
-            throw new Error('数据类型错误');
+            throw new Error('文件片段索引数据类型错误');
 
         return ifr;
     }
