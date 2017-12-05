@@ -45,7 +45,7 @@
   },
   "dependencies": {
     "binary-ws": "^1.1.2",
-    "eventspace": "^2.0.0",
+    "eventspace": "^2.0.1",
     "log-formatter": "^0.1.5"
   }
 }

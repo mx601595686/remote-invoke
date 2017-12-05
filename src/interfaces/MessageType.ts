@@ -273,5 +273,22 @@ export enum MessageType {
      *      messageID:number    //broadcast_close所设置的消息编号       
      * ]     
      */
-    broadcast_close_finish
+    broadcast_close_finish,
+
+    /* -----------------------------------下面是一些在程序内部使用的消息，不再网络上进行传输------------------------------------ */
+
+    /**
+     * ConnectionSocket连接打开
+     */
+    _onOpen,
+
+    /**
+     * ConnectionSocket连接断开
+     */
+    _onClose,
+
+    /**
+     * 划出一块事件空间,记录对方正在对哪些路径的广播展开监听
+     */
+    _broadcast_white_list
 }
