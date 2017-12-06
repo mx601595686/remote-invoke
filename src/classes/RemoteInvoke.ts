@@ -221,9 +221,8 @@ export class RemoteInvoke {
                     if (rm.files.length === 0) {
                         await this._prepare_InvokeSendingData(rm);
                     } else {
-                        const clean: any = await this._prepare_InvokeSendingData(rm, () => {
+                        const clean = await this._prepare_InvokeSendingData(rm, () => {
                             this._messageListener.cancel([MessageType.invoke_finish, rm.receiver, rm.responseMessageID] as any);
-                            clean();
                         });
 
                         this._messageListener.receiveOnce([MessageType.invoke_finish, rm.receiver, rm.responseMessageID] as any, clean);
@@ -251,7 +250,7 @@ export class RemoteInvoke {
     }
 
     /**
-     * 调用远端模块导出的方法。直接返回被调用者返回的数据与文件
+     * 调用远端模块导出的方法。直接返回数据与文件
      * @param receiver 远端模块的名称
      * @param path 方法的路径
      * @param data 要传递的数据
@@ -268,16 +267,44 @@ export class RemoteInvoke {
     invoke(receiver: string, path: string, data: InvokeSendingData, callback?: (err: Error | undefined, data: InvokeReceivingData) => Promise<void>): any {
         const rm = InvokeRequestMessage.create(this, this._messageID++, receiver, path, data);
 
-
-        const sr = this._prepare_InvokeSendingData(rm);
-
         if (callback) {   //回调函数版本
-            sr.catch(callback as any);
+            this._prepare_InvokeSendingData(rm, () => {
+                this._messageListener.cancel([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any);
+            }).then(cleanRequest => {
+                this._messageListener.receiveOnce([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any, (msg: InvokeResponseMessage) => {
+                    cleanRequest();
+                    const { data, clean } = this._prepare_InvokeReceivingData(msg);
 
+                    callback(undefined, data).then(clean).catch(err => {
+                        clean();
+                        throw err;
+                    });
+                });
+            }).catch(callback as any);
         } else {
             return new Promise((resolve, reject) => {
-                sr.catch(reject);
+                this._prepare_InvokeSendingData(rm, () => {
+                    this._messageListener.cancel([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any);
+                }).then(cleanRequest => {
+                    this._messageListener.receiveOnce([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any, async (msg: InvokeResponseMessage) => {
+                        cleanRequest();
+                        const { data, clean } = this._prepare_InvokeReceivingData(msg);
+                        
+                        try {
+                            const result: { name: string, data: Buffer }[] = [];
 
+                            for (const item of data.files) {
+                                result.push({ name: item.name, data: await item.getFile() });
+                            }
+
+                            clean();
+                            resolve({ data: data.data, files: result });
+                        } catch (error) {
+                            clean();
+                            reject(error);
+                        }
+                    });
+                }).catch(reject);
             });
         }
     }
@@ -344,7 +371,7 @@ export class RemoteInvoke {
     }
 
     /**
-     * 准备好下载回调。
+     * 准备好下载回调。返回InvokeReceivingData与清理资源回调
      */
     private _prepare_InvokeReceivingData(msg: InvokeRequestMessage | InvokeResponseMessage) {
         const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
@@ -452,7 +479,7 @@ export class RemoteInvoke {
     }
 
     /**
-     * 准备发送文件
+     * 准备发送文件，返回清理资源回调。如果超时会自动清理资源
      * @param msg 要发送的数据
      * @param onTimeout 没有文件请求超时
      */
@@ -460,9 +487,17 @@ export class RemoteInvoke {
         const result = msg.pack();
         await this.socket.send(result[0], result[1]);
 
-        if (msg.files.length > 0) {
+        if (msg.files.length > 0) { //准备文件发送
             const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
-            let timer = setTimeout(onTimeout, this.timeout);    //超时计时器
+
+            const clean = () => {  //清理资源回调
+                clearTimeout(timer);
+                this._messageListener.cancelDescendants([MessageType.invoke_file_request, msg.receiver, messageID] as any);
+            }
+
+            const timeout = () => { clean(); onTimeout && onTimeout(); };
+
+            let timer = setTimeout(timeout, this.timeout);    //超时计时器
 
             msg.files.forEach(item => {
                 let sendingData = item._data as SendingFile;
@@ -488,7 +523,7 @@ export class RemoteInvoke {
 
                 this._messageListener.receive([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any, (msg: InvokeFileRequestMessage) => {
                     clearTimeout(timer);
-                    timer = setTimeout(onTimeout, this.timeout);
+                    timer = setTimeout(timeout, this.timeout);
 
                     if (msg.index > index) {
                         index = msg.index;
@@ -517,24 +552,23 @@ export class RemoteInvoke {
                                 } else {
                                     send_finish(msg);
                                 }
-                            })
-                            .catch(err => {
+                            }).catch(err => {
                                 send_error(msg, err);
                             });
                     }
                 });
             });
 
-            //返回clean(),清理资源回调
-            return () => {
-                clearTimeout(timer);
-                this._messageListener.cancelDescendants([MessageType.invoke_file_request, msg.receiver, messageID] as any);
-            }
+            return clean;
+        } else {
+            return () => { };
         }
     }
 
     /**
       * 发送BroadcastOpenMessage
+      * @param broadcastSender 广播的发送者
+      * @param path 广播路径
       */
     private _send_BroadcastOpenMessage(broadcastSender: string, path: string) {
         if (this.socket.connected) {
@@ -563,6 +597,8 @@ export class RemoteInvoke {
 
     /**
      * 发送BroadcastCloseMessage
+     * @param broadcastSender 广播的发送者
+     * @param path 广播路径
      */
     private _send_BroadcastCloseMessage(broadcastSender: string, path: string) {
         if (this.socket.connected) {
