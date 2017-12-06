@@ -16,9 +16,9 @@ export class BinaryWS_socket implements ConnectionSocket {
     }
 
     constructor(private readonly _socket: BaseSocket) {
-        this._socket.once('open', this.onOpen);
-        this._socket.once('close', this.onClose);
-        this._socket.once('message', this.onMessage);
+        this._socket.once('open', () => this.onOpen && this.onOpen());
+        this._socket.once('close', () => this.onClose && this.onClose());
+        this._socket.once('message', (header, body) => this.onMessage && this.onMessage(header, body));
     }
 
     send(header: string, body: Buffer): Promise<void> {
