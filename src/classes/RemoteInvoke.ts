@@ -65,7 +65,7 @@ export class RemoteInvoke {
     constructor(socket: typeof ConnectionSocket, moduleName: string) {
         this.moduleName = moduleName;
 
-        const onMessage = (header: stirng, body: Buffer) => {
+        const onMessage = (header: string, body: Buffer) => {
             try {
                 const p_header = JSON.parse(header);
 
@@ -289,7 +289,7 @@ export class RemoteInvoke {
                     this._messageListener.receiveOnce([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any, async (msg: InvokeResponseMessage) => {
                         cleanRequest();
                         const { data, clean } = this._prepare_InvokeReceivingData(msg);
-                        
+
                         try {
                             const result: { name: string, data: Buffer }[] = [];
 
