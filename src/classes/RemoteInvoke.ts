@@ -51,7 +51,7 @@ export class RemoteInvoke {
     /**
      * 是否打印收到和发送的消息（用于调试）。默认false
      */
-    printMessage: boolean = false;
+    printMessage: boolean = false;  //todo asdasd
 
     /**
      * 是否打印系统错误，默认true
@@ -201,183 +201,9 @@ export class RemoteInvoke {
     }
 
     /**
-     * 打印错误消息
-     * @param desc 描述 
-     * @param err 错误信息
-     */
-    private _printError(desc: string, err: Error) {
-        if (this.printError)
-            log.warn
-                .location.white
-                .title.yellow
-                .content.yellow('remote-invoke', desc, err);
-    }
-
-    /**
-     * 准备好下载回调。
-     */
-    private _prepare_InvokeReceivingData(msg: InvokeRequestMessage | InvokeResponseMessage) {
-        const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
-
-        const files = msg.files.map(item => {
-            let start: boolean = false;             //是否已经开始获取了，主要是用于防止重复下载
-            let index = -1;                         //现在接收到第几个文件片段了
-            let downloadedSize = 0;                 //已下载大小
-            let timeout: NodeJS.Timer;              //超时计时器
-
-            const downloadNext = () => {            //下载下一个文件片段
-                const result = InvokeFileRequestMessage.create(this, msg, item.id, ++index).pack();
-
-                timeout = setTimeout(() => cb_error(new Error('请求超时')), this.timeout);  //设置超时
-
-                this._socket.send(result[0], result[1])
-                    .catch(err => { clearTimeout(timeout); cb_error(new Error('网络连接异常：' + err)); });
-            };
-
-            let cb_error: (err: Error) => void; //下载出错回调
-            let cb_receive: (data: Buffer, isEnd: boolean) => void; //接收文件回调
-
-            //监听下载到的文件
-            this._messageListener.receive([MessageType.invoke_file_response, msg.sender, messageID, item.id] as any, (data: InvokeFileResponseMessage) => {
-                clearTimeout(timeout);
-
-                if (data.index !== index) {
-                    cb_error(new Error('文件在传输过程中，顺序发生错乱'));
-                    return;
-                }
-
-                downloadedSize += data.data.length;
-                if (item.size != null && downloadedSize > item.size) {
-                    cb_error(new Error('下载到的文件大小超出了发送者所描述的大小'));
-                    return;
-                }
-
-                cb_receive(data.data, item.splitNumber != null && index + 1 >= item.splitNumber);
-            });
-
-            //监听下载文件失败
-            this._messageListener.receive([MessageType.invoke_file_failed, msg.sender, messageID, item.id] as any, (data: InvokeFileFailedMessage) => {
-                clearTimeout(timeout);
-                cb_error(new Error(data.error));
-            });
-
-            //监听下载文件结束
-            this._messageListener.receive([MessageType.invoke_file_finish, msg.sender, messageID, item.id] as any, (data: InvokeFileFinishMessage) => {
-                clearTimeout(timeout);
-                cb_receive(Buffer.alloc(0), true);
-            });
-
-            const result: ReceivingFile = {
-                size: item.size,
-                splitNumber: item.splitNumber,
-                name: item.name,
-                onData: (callback, startIndex = 0) => {
-                    if (start) {
-                        (<any>callback)(new Error('不可重复下载文件'));
-                    } else {
-                        start = true;
-                        index = startIndex - 1;
-
-                        cb_error = err => { (<any>callback)(err); cb_error = () => { } };   //确保只触发一次
-                        cb_receive = (data, isEnd) => {
-                            if (isEnd)
-                                callback(undefined, isEnd, index, data);
-                            else
-                                callback(undefined, isEnd, index, data).then(result => result !== true && downloadNext());
-                        };
-
-                        downloadNext();
-                    }
-                },
-                getFile: () => new Promise<Buffer>((resolve, reject) => {   //下载文件回调
-                    if (start) {
-                        reject(new Error('不可重复下载文件'));
-                    } else {
-                        start = true;
-                        const filePieces: Buffer[] = [];    //下载到的文件片段
-
-                        cb_error = reject;
-                        cb_receive = (data, isEnd) => {
-                            filePieces.push(data);
-                            isEnd ? resolve(Buffer.concat(filePieces)) : downloadNext();
-                        };
-
-                        downloadNext();
-                    }
-                })
-            }
-
-            return result;
-        });
-
-        return {
-            data: { data: msg.data, files },
-            clear: () => { //清理资源
-                this._messageListener.triggerDescendants([MessageType.invoke_file_failed, msg.sender, messageID] as any, { error: '下载终止' });
-
-                this._messageListener.cancelDescendants([MessageType.invoke_file_response, msg.sender, messageID] as any);
-                this._messageListener.cancelDescendants([MessageType.invoke_file_failed, msg.sender, messageID] as any);
-                this._messageListener.cancelDescendants([MessageType.invoke_file_finish, msg.sender, messageID] as any);
-            }
-        };
-    }
-
-    /**
-     * 准备发送文件
-     * @param msg 要发送的数据
-     * @param onRequest 对方请求时的回调
-     */
-    private _prepare_InvokeSendingData(msg: InvokeRequestMessage | InvokeResponseMessage, onRequest: () => void) {
-        const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
-
-        msg.files.forEach(item => {
-            let sendingData = item._data as SendingFile;
-            let index = 0;    //记录用户请求到了第几个文件片段了
-
-            this._messageListener.receive([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any, (data: InvokeFileRequestMessage) => {
-                onRequest();
-
-                if (data.index < index) {
-                    index = data.index;
-
-                }
-
-                if (Buffer.isBuffer(sendingData.file)) {
-                    if (index < (item.splitNumber as number)) {
-
-                    }
-                } else {
-
-                }
-                const result = InvokeFileFinishMessage.create(this, data, ).pack();
-
-                this._socket.send(result[0], result[1])
-                    .catch(err => this._printError('向对方发送文件失败', err));
-                const result = InvokeFileResponseMessage.create(this, data, ).pack();
-
-                this._socket.send(result[0], result[1])
-                    .catch(err => this._printError('向对方发送文件失败', err));
-            });
-        });
-
-
-        return new Promise<void>((resolve, reject) => {
-            let timeout = setTimeout(() => reject('响应超时'), this.timeout);
-
-            const result = msg.pack();
-            this._socket.send(result[0], result[1]).catch(err => { clearTimeout(timeout); reject(err); });
-
-
-
-            if (msg.files.length === 0)  //不带文件
-      
-        });
-    }
-
-    /**
      * 对外导出方法。     
      * 如果要向调用方反馈错误，直接 throw new Error() 即可。     
-     * 注意：对于导出方法，当它执行完后就不可以再继续下载文件了。     
+     * 注意：对于导出方法，当它执行完成，返回结果后就不可以再继续下载文件了。     
      * 注意：一个path上只允许导出一个方法。如果重复导出则后面的应该覆盖掉前面的。     
      * @param path 所导出的路径
      * @param func 导出的方法 
@@ -385,17 +211,31 @@ export class RemoteInvoke {
     export<F extends (data: InvokeReceivingData) => Promise<void | InvokeSendingData>>(path: string, func: F): F {
         this.cancelExport(path);
         this._messageListener.receive([MessageType.invoke_request, path] as any, async (msg: InvokeRequestMessage) => {
-            const { data, clear } = this._prepare_InvokeReceivingData(msg);
+            const { data, clean } = this._prepare_InvokeReceivingData(msg);
 
             try {
                 const result = await func(data) || { data: null };
                 const rm = InvokeResponseMessage.create(this, msg, this._messageID++, result);
-                this._prepare_InvokeSendingData(rm).catch(err => this._printError('发送调用响应失败', err));
+
+                try {
+                    if (rm.files.length === 0) {
+                        await this._prepare_InvokeSendingData(rm);
+                    } else {
+                        const clean: any = await this._prepare_InvokeSendingData(rm, () => {
+                            this._messageListener.cancel([MessageType.invoke_finish, rm.receiver, rm.responseMessageID] as any);
+                            clean();
+                        });
+
+                        this._messageListener.receiveOnce([MessageType.invoke_finish, rm.receiver, rm.responseMessageID] as any, clean);
+                    }
+                } catch (error) {
+                    this._printError('发送"调用响应"失败', error);
+                }
             } catch (error) {
                 const result = InvokeFailedMessage.create(this, msg, error).pack();
-                this._socket.send(result[0], result[1]).catch(err => this._printError('发送调用失败响应失败', err));
+                this.socket.send(result[0], result[1]).catch(err => this._printError('发送"调用失败响应"失败', err));
             } finally {
-                clear();
+                clean();
             }
         });
 
@@ -427,6 +267,8 @@ export class RemoteInvoke {
     invoke(receiver: string, path: string, data: InvokeSendingData, callback: (err: Error | undefined, data: InvokeReceivingData) => Promise<void>): void
     invoke(receiver: string, path: string, data: InvokeSendingData, callback?: (err: Error | undefined, data: InvokeReceivingData) => Promise<void>): any {
         const rm = InvokeRequestMessage.create(this, this._messageID++, receiver, path, data);
+
+
         const sr = this._prepare_InvokeSendingData(rm);
 
         if (callback) {   //回调函数版本
@@ -489,54 +331,261 @@ export class RemoteInvoke {
     }
 
     /**
+     * 打印错误消息
+     * @param desc 描述 
+     * @param err 错误信息
+     */
+    private _printError(desc: string, err: Error) {
+        if (this.printError)
+            log.warn
+                .location.white
+                .title.yellow
+                .content.yellow('remote-invoke', desc, err);
+    }
+
+    /**
+     * 准备好下载回调。
+     */
+    private _prepare_InvokeReceivingData(msg: InvokeRequestMessage | InvokeResponseMessage) {
+        const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
+
+        const files = msg.files.map(item => {
+            let start: boolean = false;             //是否已经开始获取了，主要是用于防止重复下载
+            let index = -1;                         //现在接收到第几个文件片段了
+            let downloadedSize = 0;                 //已下载大小
+            let timer: NodeJS.Timer;                //超时计时器
+
+            const downloadNext = () => {            //下载下一个文件片段
+                const result = InvokeFileRequestMessage.create(this, msg, item.id, ++index).pack();
+
+                timer = setTimeout(() => cb_error(new Error('请求超时')), this.timeout);  //设置超时
+
+                this.socket.send(result[0], result[1]).catch(err => { clearTimeout(timer); cb_error(new Error('网络连接异常：' + err)); });
+            };
+
+            let cb_error: (err: Error) => void; //下载出错回调
+            let cb_receive: (data: Buffer, isEnd: boolean) => void; //接收文件回调
+
+            //监听下载到的文件
+            this._messageListener.receive([MessageType.invoke_file_response, msg.sender, messageID, item.id] as any, (msg: InvokeFileResponseMessage) => {
+                clearTimeout(timer);
+
+                if (msg.index !== index) {
+                    cb_error(new Error('文件在传输过程中，顺序发生错乱'));
+                    return;
+                }
+
+                downloadedSize += msg.data.length;
+                if (item.size != null && downloadedSize > item.size) {
+                    cb_error(new Error('下载到的文件大小超出了发送者所描述的大小'));
+                    return;
+                }
+
+                cb_receive(msg.data, item.splitNumber != null && index + 1 >= item.splitNumber);
+            });
+
+            //监听下载文件失败
+            this._messageListener.receive([MessageType.invoke_file_failed, msg.sender, messageID, item.id] as any, (msg: InvokeFileFailedMessage) => {
+                clearTimeout(timer);
+                cb_error(new Error(msg.error));
+            });
+
+            //监听下载文件结束
+            this._messageListener.receive([MessageType.invoke_file_finish, msg.sender, messageID, item.id] as any, (msg: InvokeFileFinishMessage) => {
+                clearTimeout(timer);
+                cb_receive(Buffer.alloc(0), true);
+            });
+
+            const result: ReceivingFile = {
+                size: item.size,
+                splitNumber: item.splitNumber,
+                name: item.name,
+                onData: (callback, startIndex = 0) => {
+                    if (start) {
+                        (<any>callback)(new Error('不可重复下载文件'));
+                    } else {
+                        start = true;
+                        index = startIndex - 1;
+
+                        cb_error = err => { (<any>callback)(err); cb_error = () => { } };   //确保只触发一次
+                        cb_receive = (data, isEnd) => {
+                            if (isEnd)
+                                callback(undefined, isEnd, index, data);
+                            else
+                                callback(undefined, isEnd, index, data).then(result => result !== true && downloadNext());
+                        };
+
+                        downloadNext();
+                    }
+                },
+                getFile: () => new Promise<Buffer>((resolve, reject) => {   //下载文件回调
+                    if (start) {
+                        reject(new Error('不可重复下载文件'));
+                    } else {
+                        start = true;
+                        const filePieces: Buffer[] = [];    //下载到的文件片段
+
+                        cb_error = reject;
+                        cb_receive = (data, isEnd) => {
+                            filePieces.push(data);
+                            isEnd ? resolve(Buffer.concat(filePieces)) : downloadNext();
+                        };
+
+                        downloadNext();
+                    }
+                })
+            }
+
+            return result;
+        });
+
+        return {
+            data: { data: msg.data, files },
+            clean: () => { //清理资源
+                this._messageListener.triggerDescendants([MessageType.invoke_file_failed, msg.sender, messageID] as any, { error: '下载终止' });
+
+                this._messageListener.cancelDescendants([MessageType.invoke_file_response, msg.sender, messageID] as any);
+                this._messageListener.cancelDescendants([MessageType.invoke_file_failed, msg.sender, messageID] as any);
+                this._messageListener.cancelDescendants([MessageType.invoke_file_finish, msg.sender, messageID] as any);
+            }
+        };
+    }
+
+    /**
+     * 准备发送文件
+     * @param msg 要发送的数据
+     * @param onTimeout 没有文件请求超时
+     */
+    private async _prepare_InvokeSendingData(msg: InvokeRequestMessage | InvokeResponseMessage, onTimeout?: () => void) {
+        const result = msg.pack();
+        await this.socket.send(result[0], result[1]);
+
+        if (msg.files.length > 0) {
+            const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
+            let timer = setTimeout(onTimeout, this.timeout);    //超时计时器
+
+            msg.files.forEach(item => {
+                let sendingData = item._data as SendingFile;
+                let index = 0;    //记录用户请求到了第几个文件片段了
+
+                const send_error = (msg: InvokeFileRequestMessage, err: Error) => {
+                    sendingData.onProgress && sendingData.onProgress(err, undefined as any);
+
+                    const result = InvokeFileFailedMessage.create(this, msg, err).pack();
+                    this.socket.send(result[0], result[1]).catch(err => this._printError('向对方发送"请求文件片段失败响应"失败', err));
+
+                    //不允许再下载该文件了
+                    this._messageListener.cancel([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any);
+                }
+
+                const send_finish = (msg: InvokeFileRequestMessage) => {
+                    const result = InvokeFileFinishMessage.create(this, msg).pack();
+                    this.socket.send(result[0], result[1]).catch(err => this._printError('向对方发送"请求文件片段结束响应"失败', err));
+
+                    //不允许再下载该文件了
+                    this._messageListener.cancel([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any);
+                };
+
+                this._messageListener.receive([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any, (msg: InvokeFileRequestMessage) => {
+                    clearTimeout(timer);
+                    timer = setTimeout(onTimeout, this.timeout);
+
+                    if (msg.index > index) {
+                        index = msg.index;
+                    } else {
+                        send_error(msg, new Error('重复下载文件片段'));
+                        return;
+                    }
+
+                    if (Buffer.isBuffer(sendingData.file)) {
+                        if (index < (item.splitNumber as number)) {
+                            sendingData.onProgress && sendingData.onProgress(undefined, (index + 1) / (item.splitNumber as number));
+
+                            const result = InvokeFileResponseMessage
+                                .create(this, msg, sendingData.file.slice(index * this.filePieceSize, (index + 1) * this.filePieceSize)).pack();
+
+                            this.socket.send(result[0], result[1]).catch(err => send_error(msg, err));
+                        } else {
+                            send_finish(msg);
+                        }
+                    } else {
+                        sendingData.file(index)
+                            .then(data => {
+                                if (Buffer.isBuffer(data)) {
+                                    const result = InvokeFileResponseMessage.create(this, msg, data).pack();
+                                    this.socket.send(result[0], result[1]).catch(err => send_error(msg, err));
+                                } else {
+                                    send_finish(msg);
+                                }
+                            })
+                            .catch(err => {
+                                send_error(msg, err);
+                            });
+                    }
+                });
+            });
+
+            //返回clean(),清理资源回调
+            return () => {
+                clearTimeout(timer);
+                this._messageListener.cancelDescendants([MessageType.invoke_file_request, msg.receiver, messageID] as any);
+            }
+        }
+    }
+
+    /**
       * 发送BroadcastOpenMessage
       */
     private _send_BroadcastOpenMessage(broadcastSender: string, path: string) {
-        const messageID = this._messageID++;
+        if (this.socket.connected) {
+            const messageID = this._messageID++;
 
-        const result = BroadcastOpenMessage.create(this, messageID, broadcastSender, path).pack();
+            const result = BroadcastOpenMessage.create(this, messageID, broadcastSender, path).pack();
 
-        const interval = () => this.socket.send(result[0], result[1])
-            .catch(err => this._printError(`通知对方现在要接收指定路径的广播失败。broadcastSender:${broadcastSender} path:${path}`, err));
+            const interval = () => this.socket.send(result[0], result[1])
+                .catch(err => this._printError(`通知对方"现在要接收指定路径的广播"失败。broadcastSender:${broadcastSender} path:${path}`, err));
 
-        const timer = setInterval(interval, this.timeout);    //到了时间如果还没有收到对方响应就重新发送一次
+            const timer = setInterval(interval, this.timeout);    //到了时间如果还没有收到对方响应就重新发送一次
 
-        this._messageListener.receiveOnce([MessageType.broadcast_open_finish, messageID] as any, () => {
-            clearInterval(timer);
-            this._messageListener.cancel([MessageType._onClose, MessageType.broadcast_open_finish, messageID] as any);
-        });
+            this._messageListener.receiveOnce([MessageType.broadcast_open_finish, messageID] as any, () => {
+                clearInterval(timer);
+                this._messageListener.cancel([MessageType._onClose, MessageType.broadcast_open_finish, messageID] as any);
+            });
 
-        this._messageListener.receiveOnce([MessageType._onClose, MessageType.broadcast_open_finish, messageID] as any, () => {
-            clearInterval(timer);
-            this._messageListener.cancel([MessageType.broadcast_open_finish, messageID] as any);
-        });
+            this._messageListener.receiveOnce([MessageType._onClose, MessageType.broadcast_open_finish, messageID] as any, () => {
+                clearInterval(timer);
+                this._messageListener.cancel([MessageType.broadcast_open_finish, messageID] as any);
+            });
 
-        interval();
+            interval();
+        }
     }
 
     /**
      * 发送BroadcastCloseMessage
      */
     private _send_BroadcastCloseMessage(broadcastSender: string, path: string) {
-        const messageID = this._messageID++;
+        if (this.socket.connected) {
+            const messageID = this._messageID++;
 
-        const result = BroadcastCloseMessage.create(this, messageID, broadcastSender, path).pack();
+            const result = BroadcastCloseMessage.create(this, messageID, broadcastSender, path).pack();
 
-        const interval = () => this.socket.send(result[0], result[1])
-            .catch(err => this._printError(`通知对方现在不再接收指定路径的广播失败。broadcastSender:${broadcastSender} path:${path}`, err));
+            const interval = () => this.socket.send(result[0], result[1])
+                .catch(err => this._printError(`通知对方"现在不再接收指定路径的广播"失败。broadcastSender:${broadcastSender} path:${path}`, err));
 
-        const timer = setInterval(interval, this.timeout);    //到了时间如果还没有收到对方响应就重新发送一次
+            const timer = setInterval(interval, this.timeout);    //到了时间如果还没有收到对方响应就重新发送一次
 
-        this._messageListener.receiveOnce([MessageType.broadcast_close_finish, messageID] as any, () => {
-            clearInterval(timer);
-            this._messageListener.cancel([MessageType._onClose, MessageType.broadcast_close_finish, messageID] as any);
-        });
+            this._messageListener.receiveOnce([MessageType.broadcast_close_finish, messageID] as any, () => {
+                clearInterval(timer);
+                this._messageListener.cancel([MessageType._onClose, MessageType.broadcast_close_finish, messageID] as any);
+            });
 
-        this._messageListener.receiveOnce([MessageType._onClose, MessageType.broadcast_close_finish, messageID] as any, () => {
-            clearInterval(timer);
-            this._messageListener.cancel([MessageType.broadcast_close_finish, messageID] as any);
-        });
+            this._messageListener.receiveOnce([MessageType._onClose, MessageType.broadcast_close_finish, messageID] as any, () => {
+                clearInterval(timer);
+                this._messageListener.cancel([MessageType.broadcast_close_finish, messageID] as any);
+            });
 
-        interval();
+            interval();
+        }
     }
 }
