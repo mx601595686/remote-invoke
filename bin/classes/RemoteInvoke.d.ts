@@ -90,11 +90,22 @@ export declare class RemoteInvoke {
      */
     broadcast(path: string, data?: any): Promise<void>;
     /**
+     * 便于使用socket发送消息
+     */
+    private _sendMessage(msg);
+    /**
      * 打印错误消息
      * @param desc 描述
      * @param err 错误信息
      */
     private _printError(desc, err);
+    /**
+     * 打印收到或发送的消息
+     * @param sendOrReceive 如果是发送则为true，如果是接收则为false
+     * @param desc 描述
+     * @param data 要打印的数据
+     */
+    private _printMessage(sendOrReceive, msg);
     /**
      * 准备好下载回调。返回InvokeReceivingData与清理资源回调
      */

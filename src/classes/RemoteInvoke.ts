@@ -19,7 +19,8 @@ import {
     BroadcastOpenMessage,
     BroadcastOpenFinishMessage,
     BroadcastCloseMessage,
-    BroadcastCloseFinishMessage
+    BroadcastCloseFinishMessage,
+    MessageData
 } from './MessageData';
 
 export class RemoteInvoke {
@@ -51,7 +52,7 @@ export class RemoteInvoke {
     /**
      * 是否打印收到和发送的消息（用于调试）。默认false
      */
-    printMessage: boolean = false;  //todo asdasd
+    printMessage: boolean = false;
 
     /**
      * 是否打印系统错误，默认true
@@ -72,54 +73,72 @@ export class RemoteInvoke {
                 switch (p_header[0]) {
                     case MessageType.invoke_request: {  //被调用者收到调用请求
                         const msg = InvokeRequestMessage.parse(this, p_header, body);
+                        this._printMessage(false, msg);
+
                         this._messageListener.trigger([msg.type, msg.path] as any, msg);
 
                         break;
                     }
                     case MessageType.invoke_response: { //调用者收到调用响应
                         const msg = InvokeResponseMessage.parse(this, p_header, body);
+                        this._printMessage(false, msg);
+
                         this._messageListener.trigger([msg.type, msg.sender, msg.requestMessageID] as any, msg);
 
                         break;
                     }
                     case MessageType.invoke_finish: {   //被调用者收到调用结束响应
                         const msg = InvokeFinishMessage.parse(this, p_header, body);
+                        this._printMessage(false, msg);
+
                         this._messageListener.trigger([msg.type, msg.sender, msg.responseMessageID] as any, msg);
 
                         break;
                     }
                     case MessageType.invoke_failed: {   //调用者收到调用失败响应
                         const msg = InvokeFailedMessage.parse(this, p_header, body);
+                        this._printMessage(false, msg);
+
                         this._messageListener.trigger([msg.type, msg.sender, msg.requestMessageID] as any, msg);
 
                         break;
                     }
                     case MessageType.invoke_file_request: {
                         const msg = InvokeFileRequestMessage.parse(this, p_header, body);
+                        this._printMessage(false, msg);
+
                         this._messageListener.trigger([msg.type, msg.sender, msg.messageID, msg.id] as any, msg);
 
                         break;
                     }
                     case MessageType.invoke_file_response: {
                         const msg = InvokeFileResponseMessage.parse(this, p_header, body);
+                        this._printMessage(false, msg);
+
                         this._messageListener.trigger([msg.type, msg.sender, msg.messageID, msg.id] as any, msg);
 
                         break;
                     }
                     case MessageType.invoke_file_failed: {
                         const msg = InvokeFileFailedMessage.parse(this, p_header, body);
+                        this._printMessage(false, msg);
+
                         this._messageListener.trigger([msg.type, msg.sender, msg.messageID, msg.id] as any, msg);
 
                         break;
                     }
                     case MessageType.invoke_file_finish: {
                         const msg = InvokeFileFinishMessage.parse(this, p_header, body);
+                        this._printMessage(false, msg);
+
                         this._messageListener.trigger([msg.type, msg.sender, msg.messageID, msg.id] as any, msg);
 
                         break;
                     }
                     case MessageType.broadcast: {
                         const msg = BroadcastMessage.parse(this, p_header, body);
+                        this._printMessage(false, msg);
+
                         const eventName = [msg.type, msg.sender, ...msg.path.split('.')] as any;
 
                         if (!this._messageListener.hasAncestors(eventName)) {   //如果没有注册过这个广播的监听器，就通知对方不要再发送了
@@ -132,34 +151,38 @@ export class RemoteInvoke {
                     }
                     case MessageType.broadcast_open: {
                         const msg = BroadcastOpenMessage.parse(this, p_header, body);
+                        this._printMessage(false, msg);
 
                         this._messageListener.receive([MessageType._broadcast_white_list, ...msg.path.split('.')] as any, msg.path as any);
 
-                        const result = BroadcastOpenFinishMessage.create(this, msg).pack();
-                        this.socket.send(result[0], result[1])
+                        this._sendMessage(BroadcastOpenFinishMessage.create(this, msg))
                             .catch(err => this._printError('响应对方的broadcast_open请求失败', err));
 
                         break;
                     }
                     case MessageType.broadcast_open_finish: {
                         const msg = BroadcastOpenFinishMessage.parse(this, p_header, body);
+                        this._printMessage(false, msg);
+
                         this._messageListener.trigger([msg.type, msg.messageID] as any, msg);
 
                         break;
                     }
                     case MessageType.broadcast_close: {
                         const msg = BroadcastCloseMessage.parse(this, p_header, body);
+                        this._printMessage(false, msg);
 
                         this._messageListener.cancel([MessageType._broadcast_white_list, ...msg.path.split('.')] as any);  //清除标记
 
-                        const result = BroadcastCloseFinishMessage.create(this, msg).pack();
-                        this.socket.send(result[0], result[1])
+                        this._sendMessage(BroadcastCloseFinishMessage.create(this, msg))
                             .catch(err => this._printError('响应对方的broadcast_close请求失败', err));
 
                         break;
                     }
                     case MessageType.broadcast_close_finish: {
                         const msg = BroadcastCloseFinishMessage.parse(this, p_header, body);
+                        this._printMessage(false, msg);
+
                         this._messageListener.trigger([msg.type, msg.messageID] as any, msg);
 
                         break;
@@ -231,8 +254,8 @@ export class RemoteInvoke {
                     this._printError('发送"调用响应"失败', error);
                 }
             } catch (error) {
-                const result = InvokeFailedMessage.create(this, msg, error).pack();
-                this.socket.send(result[0], result[1]).catch(err => this._printError('发送"调用失败响应"失败', err));
+                this._sendMessage(InvokeFailedMessage.create(this, msg, error))
+                    .catch(err => this._printError('发送"调用失败响应"失败', err));
             } finally {
                 clean();
             }
@@ -352,9 +375,18 @@ export class RemoteInvoke {
     async broadcast(path: string, data: any = null): Promise<void> {
         //判断对方是否注册的有关于这条广播的监听器
         if (this._messageListener.hasAncestors([MessageType._broadcast_white_list, ...path.split('.')] as any)) {
-            const result = BroadcastMessage.create(this, path, data).pack();
-            await this.socket.send(result[0], result[1]);
+            await this._sendMessage(BroadcastMessage.create(this, path, data));
         }
+    }
+
+    /**
+     * 便于使用socket发送消息
+     */
+    private _sendMessage(msg: MessageData) {
+        const result = msg.pack();
+        this._printMessage(true, msg);
+
+        return this.socket.send(result[0], result[1]);
     }
 
     /**
@@ -371,6 +403,28 @@ export class RemoteInvoke {
     }
 
     /**
+     * 打印收到或发送的消息
+     * @param sendOrReceive 如果是发送则为true，如果是接收则为false
+     * @param desc 描述
+     * @param data 要打印的数据
+     */
+    private _printMessage(sendOrReceive: boolean, msg: MessageData) {
+        if (this.printMessage)
+            if (sendOrReceive)
+                log
+                    .location
+                    .location.cyan.bold
+                    .title
+                    .content('remote-invoke', '发送', MessageType[msg.type], JSON.stringify(msg, undefined, 2));
+            else
+                log
+                    .location
+                    .location.green.bold
+                    .title
+                    .content('remote-invoke', '收到', MessageType[msg.type], JSON.stringify(msg, undefined, 2));
+    }
+
+    /**
      * 准备好下载回调。返回InvokeReceivingData与清理资源回调
      */
     private _prepare_InvokeReceivingData(msg: InvokeRequestMessage | InvokeResponseMessage) {
@@ -383,11 +437,10 @@ export class RemoteInvoke {
             let timer: NodeJS.Timer;                //超时计时器
 
             const downloadNext = () => {            //下载下一个文件片段
-                const result = InvokeFileRequestMessage.create(this, msg, item.id, ++index).pack();
-
                 timer = setTimeout(() => cb_error(new Error('请求超时')), this.timeout);  //设置超时
 
-                this.socket.send(result[0], result[1]).catch(err => { clearTimeout(timer); cb_error(new Error('网络连接异常：' + err)); });
+                this._sendMessage(InvokeFileRequestMessage.create(this, msg, item.id, ++index))
+                    .catch(err => { clearTimeout(timer); cb_error(new Error('网络连接异常：' + err)); });
             };
 
             let cb_error: (err: Error) => void; //下载出错回调
@@ -484,8 +537,7 @@ export class RemoteInvoke {
      * @param onTimeout 没有文件请求超时
      */
     private async _prepare_InvokeSendingData(msg: InvokeRequestMessage | InvokeResponseMessage, onTimeout?: () => void) {
-        const result = msg.pack();
-        await this.socket.send(result[0], result[1]);
+        await this._sendMessage(msg);
 
         if (msg.files.length > 0) { //准备文件发送
             const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
@@ -506,16 +558,16 @@ export class RemoteInvoke {
                 const send_error = (msg: InvokeFileRequestMessage, err: Error) => {
                     sendingData.onProgress && sendingData.onProgress(err, undefined as any);
 
-                    const result = InvokeFileFailedMessage.create(this, msg, err).pack();
-                    this.socket.send(result[0], result[1]).catch(err => this._printError('向对方发送"请求文件片段失败响应"失败', err));
+                    this._sendMessage(InvokeFileFailedMessage.create(this, msg, err))
+                        .catch(err => this._printError('向对方发送"请求文件片段失败响应"失败', err));
 
                     //不允许再下载该文件了
                     this._messageListener.cancel([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any);
                 }
 
                 const send_finish = (msg: InvokeFileRequestMessage) => {
-                    const result = InvokeFileFinishMessage.create(this, msg).pack();
-                    this.socket.send(result[0], result[1]).catch(err => this._printError('向对方发送"请求文件片段结束响应"失败', err));
+                    this._sendMessage(InvokeFileFinishMessage.create(this, msg))
+                        .catch(err => this._printError('向对方发送"请求文件片段结束响应"失败', err));
 
                     //不允许再下载该文件了
                     this._messageListener.cancel([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any);
@@ -537,9 +589,9 @@ export class RemoteInvoke {
                             sendingData.onProgress && sendingData.onProgress(undefined, (index + 1) / (item.splitNumber as number));
 
                             const result = InvokeFileResponseMessage
-                                .create(this, msg, sendingData.file.slice(index * this.filePieceSize, (index + 1) * this.filePieceSize)).pack();
+                                .create(this, msg, sendingData.file.slice(index * this.filePieceSize, (index + 1) * this.filePieceSize));
 
-                            this.socket.send(result[0], result[1]).catch(err => send_error(msg, err));
+                            this._sendMessage(result).catch(err => send_error(msg, err));
                         } else {
                             send_finish(msg);
                         }
@@ -547,8 +599,7 @@ export class RemoteInvoke {
                         sendingData.file(index)
                             .then(data => {
                                 if (Buffer.isBuffer(data)) {
-                                    const result = InvokeFileResponseMessage.create(this, msg, data).pack();
-                                    this.socket.send(result[0], result[1]).catch(err => send_error(msg, err));
+                                    this._sendMessage(InvokeFileResponseMessage.create(this, msg, data)).catch(err => send_error(msg, err));
                                 } else {
                                     send_finish(msg);
                                 }
@@ -574,9 +625,9 @@ export class RemoteInvoke {
         if (this.socket.connected) {
             const messageID = this._messageID++;
 
-            const result = BroadcastOpenMessage.create(this, messageID, broadcastSender, path).pack();
+            const result = BroadcastOpenMessage.create(this, messageID, broadcastSender, path);
 
-            const interval = () => this.socket.send(result[0], result[1])
+            const interval = () => this._sendMessage(result)
                 .catch(err => this._printError(`通知对方"现在要接收指定路径的广播"失败。broadcastSender:${broadcastSender} path:${path}`, err));
 
             const timer = setInterval(interval, this.timeout);    //到了时间如果还没有收到对方响应就重新发送一次
@@ -604,9 +655,9 @@ export class RemoteInvoke {
         if (this.socket.connected) {
             const messageID = this._messageID++;
 
-            const result = BroadcastCloseMessage.create(this, messageID, broadcastSender, path).pack();
+            const result = BroadcastCloseMessage.create(this, messageID, broadcastSender, path);
 
-            const interval = () => this.socket.send(result[0], result[1])
+            const interval = () => this._sendMessage(result)
                 .catch(err => this._printError(`通知对方"现在不再接收指定路径的广播"失败。broadcastSender:${broadcastSender} path:${path}`, err));
 
             const timer = setInterval(interval, this.timeout);    //到了时间如果还没有收到对方响应就重新发送一次
