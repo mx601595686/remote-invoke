@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import { ConnectionSocket } from "./ConnectionSocket";
+import { ConnectionSocket } from "../interfaces/ConnectionSocket";
 import { InvokeReceivingData } from '../interfaces/InvokeReceivingData';
 import { InvokeSendingData } from '../interfaces/InvokeSendingData';
 export declare class RemoteInvoke {
@@ -33,7 +33,7 @@ export declare class RemoteInvoke {
      * @param socket 连接端口
      * @param moduleName 当前模块的名称
      */
-    constructor(socket: typeof ConnectionSocket, moduleName: string);
+    constructor(socket: ConnectionSocket, moduleName: string);
     /**
      * 对外导出方法。
      * 如果要向调用方反馈错误，直接 throw new Error() 即可。

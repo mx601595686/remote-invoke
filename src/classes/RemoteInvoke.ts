@@ -3,7 +3,7 @@ import { EventLevel } from 'eventspace/bin/classes/EventLevel';
 import log from 'log-formatter';
 
 import { MessageType } from '../interfaces/MessageType';
-import { ConnectionSocket } from "./ConnectionSocket";
+import { ConnectionSocket } from "../interfaces/ConnectionSocket";
 import { InvokeReceivingData, ReceivingFile } from '../interfaces/InvokeReceivingData';
 import { InvokeSendingData, SendingFile } from '../interfaces/InvokeSendingData';
 import {
@@ -63,10 +63,16 @@ export class RemoteInvoke {
      * @param socket 连接端口
      * @param moduleName 当前模块的名称
      */
-    constructor(socket: typeof ConnectionSocket, moduleName: string) {
+    constructor(socket: ConnectionSocket, moduleName: string) {
         this.moduleName = moduleName;
+        this.socket = socket;
 
-        const onMessage = (header: string, body: Buffer) => {
+        if (this.socket.ri != null)
+            throw new Error('传入的ConnectionSocket已在其他地方被使用');
+
+        this.socket.ri = this;
+
+        this.socket.onMessage = (header: string, body: Buffer) => {
             try {
                 const p_header = JSON.parse(header);
 
@@ -195,9 +201,9 @@ export class RemoteInvoke {
             }
         };
 
-        const onOpen = () => this._messageListener.triggerDescendants([MessageType._onOpen] as any);
+        this.socket.onOpen = () => this._messageListener.triggerDescendants([MessageType._onOpen] as any);
 
-        const onClose = () => this._messageListener.triggerDescendants([MessageType._onClose] as any);
+        this.socket.onClose = () => this._messageListener.triggerDescendants([MessageType._onClose] as any);
 
         //当打开端口之后立刻通知对方要监听哪些广播
         this._messageListener.receive([MessageType._onOpen, '_send_broadcast_open'] as any, () => {
@@ -219,8 +225,6 @@ export class RemoteInvoke {
         this._messageListener.receive([MessageType._onClose, '_clean_opened_broadcast'] as any, () => {
             this._messageListener.cancelDescendants([MessageType._broadcast_white_list] as any);
         });
-
-        this.socket = new socket(this, onMessage, onOpen, onClose);
     }
 
     /**
