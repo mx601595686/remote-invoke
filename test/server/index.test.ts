@@ -3,8 +3,7 @@ import expect = require('expect.js');
 import { Server, ServerSocket, ReadyState } from 'binary-ws';
 import { EventSpace } from 'eventspace/bin/classes/EventSpace';
 
-import { MessageType } from './../../src/interfaces/MessageType';
-import { RemoteInvoke } from '../../src';
+import { RemoteInvoke,MessageType } from '../../src';
 import { BinaryWS_socket } from './../BinaryWS_socket';
 
 //注意：测试需要8080端口，请确保不会被占用
@@ -19,7 +18,7 @@ describe('测试remote-invoke', function () {
         const httpServer = http.createServer();
         httpServer.listen(8080);
         server = new Server(httpServer, { url: 'ws://localhost:8080' });
-        
+
         server.on('error', (err) => console.error('测试服务器出错：', err));
         server.once('listening', () => {
             server.once('connection', (socket) => {
@@ -64,7 +63,18 @@ describe('测试remote-invoke', function () {
             expect(result.data).to.be(2);
         });
 
-        it('测试调用远端导出的方法')
+        it.only('测试远端方法反馈错误', function (done) {
+            s_rv.export('test', async (data) => {
+                throw new Error('test error');
+            });
+
+            c_rv.invoke('server', 'test', { data: null }).catch(err => {
+                expect(err).to.be.a(Error);
+                expect(err.message).to.be('test error');
+                done();
+            });
+        });
+
         it('测试取消导出方法')
         it('测试导出方法')
         it('测试导出方法')

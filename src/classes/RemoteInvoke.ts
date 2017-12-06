@@ -293,28 +293,35 @@ export class RemoteInvoke {
     invoke(receiver: string, path: string, data: InvokeSendingData, callback: (err: Error | undefined, data: InvokeReceivingData) => Promise<void>): void
     invoke(receiver: string, path: string, data: InvokeSendingData, callback?: (err: Error | undefined, data: InvokeReceivingData) => Promise<void>): any {
         const rm = InvokeRequestMessage.create(this, this._messageID++, receiver, path, data);
+        const cleanMessageListener = () => {   //清理注册的消息监听器
+            this._messageListener.cancel([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any);
+            this._messageListener.cancel([MessageType.invoke_failed, rm.receiver, rm.requestMessageID] as any);
+        };
 
         if (callback) {   //回调函数版本
-            this._prepare_InvokeSendingData(rm, () => {
-                this._messageListener.cancel([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any);
-            }).then(cleanRequest => {
+            this._prepare_InvokeSendingData(rm, cleanMessageListener).then(cleanSendRequest => {
                 this._messageListener.receiveOnce([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any, (msg: InvokeResponseMessage) => {
-                    cleanRequest();
-                    const { data, clean } = this._prepare_InvokeReceivingData(msg);
+                    cleanSendRequest();
+                    cleanMessageListener();
 
-                    callback(undefined, data).then(clean).catch(err => {
-                        clean();
-                        throw err;
-                    });
+                    const { data, clean } = this._prepare_InvokeReceivingData(msg);
+                    callback(undefined, data).then(clean).catch(err => { clean(); throw err; });
+                });
+
+                this._messageListener.receiveOnce([MessageType.invoke_failed, rm.receiver, rm.requestMessageID] as any, (msg: InvokeFailedMessage) => {
+                    cleanSendRequest();
+                    cleanMessageListener();
+
+                    (callback as any)(new Error(msg.error));
                 });
             }).catch(callback as any);
         } else {
             return new Promise((resolve, reject) => {
-                this._prepare_InvokeSendingData(rm, () => {
-                    this._messageListener.cancel([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any);
-                }).then(cleanRequest => {
+                this._prepare_InvokeSendingData(rm, cleanMessageListener).then(cleanSendRequest => {
                     this._messageListener.receiveOnce([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any, async (msg: InvokeResponseMessage) => {
-                        cleanRequest();
+                        cleanSendRequest();
+                        cleanMessageListener();
+
                         const { data, clean } = this._prepare_InvokeReceivingData(msg);
 
                         try {
@@ -324,12 +331,19 @@ export class RemoteInvoke {
                                 result.push({ name: item.name, data: await item.getFile() });
                             }
 
-                            clean();
                             resolve({ data: data.data, files: result });
                         } catch (error) {
-                            clean();
                             reject(error);
+                        } finally {
+                            clean();
                         }
+                    });
+
+                    this._messageListener.receiveOnce([MessageType.invoke_failed, rm.receiver, rm.requestMessageID] as any, (msg: InvokeFailedMessage) => {
+                        cleanSendRequest();
+                        cleanMessageListener();
+
+                        reject(new Error(msg.error));
                     });
                 }).catch(reject);
             });
