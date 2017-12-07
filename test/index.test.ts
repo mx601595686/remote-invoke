@@ -32,8 +32,8 @@ describe('测试remote-invoke', function () {
                 s_rv.printMessage = true;
                 c_rv.printMessage = true;
 
-                (s_rv.timeout as any) = 5 * 1000; //修改为5秒过期超时
-                (c_rv.timeout as any) = 5 * 1000;
+                (s_rv.timeout as any) = 3 * 1000; //修改为3秒过期超时
+                (c_rv.timeout as any) = 3 * 1000;
 
                 done();
             });
@@ -63,7 +63,7 @@ describe('测试remote-invoke', function () {
                 return { data: 2 };
             });
 
-            const result = await c_rv.invoke('server', 'test/a', { data: null });
+            const result = await c_rv.invoke('server', 'test/a');
             expect(result.data).to.be(2);
         });
 
@@ -73,7 +73,7 @@ describe('测试remote-invoke', function () {
                     throw new Error('test error');
                 });
 
-                c_rv.invoke('server', 'test', { data: null }).catch(err => {
+                c_rv.invoke('server', 'test').catch(err => {
                     expect(err).to.be.a(Error);
                     expect(err.message).to.be('test error');
                     done();
@@ -85,7 +85,7 @@ describe('测试remote-invoke', function () {
                     throw new Error('test error');
                 });
 
-                c_rv.invoke('server', 'test', { data: null }, async (err: any, data) => {
+                c_rv.invoke('server', 'test', undefined, async (err: any, data) => {
                     expect(err).to.be.a(Error);
                     expect(err.message).to.be('test error');
                     expect(data).to.be(undefined);
@@ -97,39 +97,70 @@ describe('测试remote-invoke', function () {
         describe('测试超时', function () {
 
             describe('测试调用超时', function () {
-                it.only('promise版', function (done) {
-                    this.timeout(15 * 1000);
+
+                it('promise版', function (done) {
+                    this.timeout(10 * 1000);
 
                     s_rv.export('test', (data) => {
                         return new Promise((resolve, reject) => {
-                            setTimeout(() => resolve, 10 * 1000);
+                            setTimeout(() => resolve, 5 * 1000);
                         });
                     });
 
-                    c_rv.invoke('server', 'test', { data: null }).catch(err => {
-                        expect(err).to.be.a(Error);
+                    c_rv.invoke('server', 'test').catch(err => {
                         expect(err.message).to.be('请求超时');
                         done();
                     });
                 });
 
                 it('回调函数版', function (done) {
-                    s_rv.export('test', async (data) => {
-                        throw new Error('test error');
+                    this.timeout(10 * 1000);
+
+                    s_rv.export('test', (data) => {
+                        return new Promise((resolve, reject) => {
+                            setTimeout(() => resolve, 5 * 1000);
+                        });
                     });
 
-                    c_rv.invoke('server', 'test', { data: null }, async (err: any, data) => {
-                        expect(err).to.be.a(Error);
-                        expect(err.message).to.be('test error');
-                        expect(data).to.be(undefined);
+                    c_rv.invoke('server', 'test', undefined, async (err: any, data) => {
+                        expect(err.message).to.be('请求超时');
                         done();
                     });
                 });
             });
 
+            it.only('测试被调用端超时后清理资源', function (done) {
+                this.timeout(10 * 1000);
+
+                s_rv.export('test', async (data) => {
+                    return { data: null, files: [{ name: 'test file', file: Buffer.alloc(512 * 1024 * 4) }] };
+                });
+
+                c_rv.invoke('server', 'test', undefined, (err, data) => {
+                    return new Promise((resolve1) => {
+                        expect(err).to.be(undefined);
+                        data.files[0].onData((err, isEnd, index, data) => {
+                            return new Promise((resolve2) => {
+                                if (index === 0) {
+                                    expect(err).to.be(undefined);
+                                    setTimeout(resolve2, 5 * 1000);
+                                } else {
+                                    expect((<Error>err).message).to.be('请求超时');
+                                    resolve1();
+                                    done();
+                                }
+                            });
+                        });
+                    });
+                });
+            });
+
+            describe('测试请求文件片段超时', function () {
+
+            });
+
             describe('测试下载文件延长调用超时', function () { });
 
-            describe('测试下载文件超时', function () { });
         });
 
         describe('测试向对方发送文件', function () {

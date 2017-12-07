@@ -434,15 +434,16 @@ export class RemoteInvoke {
      * @param data 要打印的数据
      */
     private _printMessage(sendOrReceive: boolean, msg: MessageData) {
-        //过滤或转换序列化过程中的一些对象属性
+        //过滤或转换要序列化的属性
         const filter = (key: string, value: any) => {
             if (key === '_data')
                 return undefined;
-            else if (Buffer.isBuffer(value))
-                return `<Buffer length=${value.length}>`
+            else if (value != null && value.type === 'Buffer' && Array.isArray(value.data))
+                //这样写是因为Buffer.isBuffer在JSON.stringify中没用
+                return `<Buffer length=${value.data.length}>`;
             else
                 return value;
-        }
+        };
 
         if (this.printMessage)
             if (sendOrReceive)
@@ -594,7 +595,7 @@ export class RemoteInvoke {
         if (msg.files.length > 0) { //准备文件发送
             msg.files.forEach(item => {
                 let sendingData = item._data as SendingFile;
-                let index = 0;    //记录用户请求到了第几个文件片段了
+                let index = -1;    //记录用户请求到了第几个文件片段了
 
                 const send_error = (msg: InvokeFileRequestMessage, err: Error) => {
                     sendingData.onProgress && sendingData.onProgress(err, undefined as any);
