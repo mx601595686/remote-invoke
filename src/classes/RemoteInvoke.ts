@@ -283,7 +283,7 @@ export class RemoteInvoke {
      * @param path 方法的路径
      * @param data 要传递的数据
      */
-    invoke(receiver: string, path: string, data: InvokeSendingData): Promise<{ data: any, files: { name: string, data: Buffer }[] }>
+    invoke(receiver: string, path: string, data?: InvokeSendingData | undefined): Promise<{ data: any, files: { name: string, data: Buffer }[] }>
     /**
      * 调用远端模块导出的方法。
      * @param receiver 远端模块的名称
@@ -291,8 +291,8 @@ export class RemoteInvoke {
      * @param data 要传递的数据
      * @param callback 接收响应数据的回调。注意：一旦回调执行完成就不能再下载文件了。
      */
-    invoke(receiver: string, path: string, data: InvokeSendingData, callback: (err: Error | undefined, data: InvokeReceivingData) => Promise<void>): void
-    invoke(receiver: string, path: string, data: InvokeSendingData, callback?: (err: Error | undefined, data: InvokeReceivingData) => Promise<void>): any {
+    invoke(receiver: string, path: string, data: InvokeSendingData | undefined, callback: (err: Error | undefined, data: InvokeReceivingData) => Promise<void>): void
+    invoke(receiver: string, path: string, data: InvokeSendingData = { data: null }, callback?: (err: Error | undefined, data: InvokeReceivingData) => Promise<void>): any {
         const rm = InvokeRequestMessage.create(this, this._messageID++, receiver, path, data);
         const cleanMessageListener = () => {   //清理注册的消息监听器
             this._messageListener.cancel([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any);
@@ -434,19 +434,29 @@ export class RemoteInvoke {
      * @param data 要打印的数据
      */
     private _printMessage(sendOrReceive: boolean, msg: MessageData) {
+        //过滤或转换序列化过程中的一些对象属性
+        const filter = (key: string, value: any) => {
+            if (key === '_data')
+                return undefined;
+            else if (Buffer.isBuffer(value))
+                return `<Buffer length=${value.length}>`
+            else
+                return value;
+        }
+
         if (this.printMessage)
             if (sendOrReceive)
                 log
                     .location
                     .location.cyan.bold
                     .title
-                    .content('remote-invoke', '发送', MessageType[msg.type], JSON.stringify(msg, undefined, 4));
+                    .content('remote-invoke', '发送', MessageType[msg.type], JSON.stringify(msg, filter, 4));
             else
                 log
                     .location
                     .location.green.bold
                     .title
-                    .content('remote-invoke', '收到', MessageType[msg.type], JSON.stringify(msg, undefined, 4));
+                    .content('remote-invoke', '收到', MessageType[msg.type], JSON.stringify(msg, filter, 4));
     }
 
     /**
