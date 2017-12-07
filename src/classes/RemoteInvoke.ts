@@ -246,7 +246,8 @@ export class RemoteInvoke {
 
                 try {
                     if (rm.files.length === 0) {
-                        await this._prepare_InvokeSendingData(rm);
+                        const clean = await this._prepare_InvokeSendingData(rm);
+                        clean();
                     } else {
                         const clean = await this._prepare_InvokeSendingData(rm, () => {
                             this._messageListener.cancel([MessageType.invoke_finish, rm.receiver, rm.responseMessageID] as any);
@@ -299,7 +300,10 @@ export class RemoteInvoke {
         };
 
         if (callback) {   //回调函数版本
-            this._prepare_InvokeSendingData(rm, cleanMessageListener).then(cleanSendRequest => {
+            this._prepare_InvokeSendingData(rm, () => {
+                cleanMessageListener();
+                (callback as any)(new Error('请求超时'));
+            }).then(cleanSendRequest => {
                 this._messageListener.receiveOnce([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any, (msg: InvokeResponseMessage) => {
                     cleanSendRequest();
                     cleanMessageListener();
@@ -317,7 +321,10 @@ export class RemoteInvoke {
             }).catch(callback as any);
         } else {
             return new Promise((resolve, reject) => {
-                this._prepare_InvokeSendingData(rm, cleanMessageListener).then(cleanSendRequest => {
+                this._prepare_InvokeSendingData(rm, () => {
+                    cleanMessageListener();
+                    reject(new Error('请求超时'));
+                }).then(cleanSendRequest => {
                     this._messageListener.receiveOnce([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any, async (msg: InvokeResponseMessage) => {
                         cleanSendRequest();
                         cleanMessageListener();
@@ -505,7 +512,10 @@ export class RemoteInvoke {
                         start = true;
                         index = startIndex - 1;
 
-                        cb_error = err => { (<any>callback)(err); cb_error = () => { } };   //确保只触发一次
+                        cb_error = err => {    //确保发生错误后就不允许触发其他操作了
+                            (<any>callback)(err);
+                            cb_receive = cb_error = () => { };
+                        };
                         cb_receive = (data, isEnd) => {
                             if (isEnd)
                                 callback(undefined, isEnd, index, data);
@@ -550,25 +560,28 @@ export class RemoteInvoke {
     }
 
     /**
-     * 准备发送文件，返回清理资源回调。如果超时会自动清理资源
+     * 准备发送文件，返回清理资源回调。如果超时或发送错误会自动清理资源
      * @param msg 要发送的数据
      * @param onTimeout 没有文件请求超时
      */
     private async _prepare_InvokeSendingData(msg: InvokeRequestMessage | InvokeResponseMessage, onTimeout?: () => void) {
-        await this._sendMessage(msg);
+        const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
+        const timeout = () => { clean(); onTimeout && onTimeout(); };
+        const clean = () => {  //清理资源回调
+            clearTimeout(timer);
+            if (msg.files.length > 0)
+                this._messageListener.cancelDescendants([MessageType.invoke_file_request, msg.receiver, messageID] as any);
+        }
+
+        let timer = setTimeout(timeout, this.timeout);    //超时计时器
+
+        try {
+            await this._sendMessage(msg);
+        } catch (error) {
+            clean(); throw error;
+        }
 
         if (msg.files.length > 0) { //准备文件发送
-            const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
-
-            const clean = () => {  //清理资源回调
-                clearTimeout(timer);
-                this._messageListener.cancelDescendants([MessageType.invoke_file_request, msg.receiver, messageID] as any);
-            }
-
-            const timeout = () => { clean(); onTimeout && onTimeout(); };
-
-            let timer = setTimeout(timeout, this.timeout);    //超时计时器
-
             msg.files.forEach(item => {
                 let sendingData = item._data as SendingFile;
                 let index = 0;    //记录用户请求到了第几个文件片段了
@@ -626,11 +639,9 @@ export class RemoteInvoke {
                     }
                 });
             });
-
-            return clean;
-        } else {
-            return () => { };
         }
+
+        return clean;
     }
 
     /**

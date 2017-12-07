@@ -32,8 +32,8 @@ describe('测试remote-invoke', function () {
                 s_rv.printMessage = true;
                 c_rv.printMessage = true;
 
-                (s_rv.timeout as any) = 10;
-                (c_rv.timeout as any) = 10;
+                (s_rv.timeout as any) = 5 * 1000; //修改为5秒过期超时
+                (c_rv.timeout as any) = 5 * 1000;
 
                 done();
             });
@@ -95,7 +95,37 @@ describe('测试remote-invoke', function () {
         });
 
         describe('测试超时', function () {
-            describe('测试调用超时', function () { });
+
+            describe('测试调用超时', function () {
+                it.only('promise版', function (done) {
+                    this.timeout(15 * 1000);
+
+                    s_rv.export('test', (data) => {
+                        return new Promise((resolve, reject) => {
+                            setTimeout(() => resolve, 10 * 1000);
+                        });
+                    });
+
+                    c_rv.invoke('server', 'test', { data: null }).catch(err => {
+                        expect(err).to.be.a(Error);
+                        expect(err.message).to.be('请求超时');
+                        done();
+                    });
+                });
+
+                it('回调函数版', function (done) {
+                    s_rv.export('test', async (data) => {
+                        throw new Error('test error');
+                    });
+
+                    c_rv.invoke('server', 'test', { data: null }, async (err: any, data) => {
+                        expect(err).to.be.a(Error);
+                        expect(err.message).to.be('test error');
+                        expect(data).to.be(undefined);
+                        done();
+                    });
+                });
+            });
 
             describe('测试下载文件延长调用超时', function () { });
 
