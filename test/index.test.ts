@@ -3,8 +3,8 @@ import expect = require('expect.js');
 import { Server, ServerSocket, ReadyState } from 'binary-ws';
 import { EventSpace } from 'eventspace/bin/classes/EventSpace';
 
-import { RemoteInvoke, MessageType } from '../../src';
-import { BinaryWS_socket } from './../BinaryWS_socket';
+import { RemoteInvoke, MessageType } from '../src';
+import { BinaryWS_socket } from './BinaryWS_socket';
 
 //注意：测试需要8080端口，请确保不会被占用
 describe('测试remote-invoke', function () {
@@ -92,7 +92,7 @@ describe('测试remote-invoke', function () {
             });
         });
 
-        describe('测试超时', function () { 
+        describe('测试超时', function () {
             describe('测试调用超时', function () { });
 
             describe('测试下载文件延长调用超时', function () { });
@@ -126,44 +126,44 @@ describe('测试remote-invoke', function () {
     });
 
     describe('测试 broadcast', function () {
-        it('测试注册广播',function(){
+        it('测试注册广播', function () {
             /**
              * 注意查看broadcast_open
              */
         })
 
-        it('测试取消注册广播',function(){
+        it('测试取消注册广播', function () {
             /**
              * 注意查看broadcast_close
              */
         })
 
-        it('测试发送对方没有注册过的广播',function(){
+        it('测试发送对方没有注册过的广播', function () {
             /**
              * 注意查看broadcast_close
              */
         })
 
-        it('测试向对方发送广播广播',function(){
+        it('测试向对方发送广播广播', function () {
             /**
              * 注意查看broadcast_close
              */
         })
 
-        
-        it('测试发送带有层级关系的广播',function(){
+
+        it('测试发送带有层级关系的广播', function () {
             /**
              * 注意查看broadcast_close
              */
         })
-                
-        it('测试网络连接断开后，清空对方注册过的广播',function(){
+
+        it('测试网络连接断开后，清空对方注册过的广播', function () {
             /**
              * 注意查看broadcast_close
              */
         })
-        
-        it('测试网络重连后，向方发送注册过的广播',function(){
+
+        it('测试网络重连后，向方发送注册过的广播', function () {
             /**
              * 注意查看broadcast_close
              */
