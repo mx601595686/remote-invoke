@@ -39,6 +39,8 @@ export enum MessageType {
      * 
      * 当把invoke_request发送出去之后(不管消息现在是在缓冲队列中还是真的已经发出去了)，调用者就开始倒计时，时长为3分钟，超过3分钟就判定请求超时。
      * 如果中途收到了被调用者传回的invoke_file_request请求，那么就重置倒计时，这一过程直到收到被调用者传回的invoke_response或invoke_failed为止。
+     * 
+     * 注意：如果调用者调用的方法不存在，被调用者要向调用者报错
      */
     invoke_request,
 
