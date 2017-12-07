@@ -304,6 +304,10 @@ export class RemoteInvoke {
             this._messageListener.cancel([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any);
             this._messageListener.cancel([MessageType.invoke_failed, rm.receiver, rm.requestMessageID] as any);
         };
+        const sendInvokeFinish = (msg: InvokeResponseMessage) => {  //响应被调用者，调用结束
+            if (msg.files.length > 0)
+                this._sendMessage(InvokeFinishMessage.create(this, msg));
+        }
 
         if (callback) {   //回调函数版本
             this._prepare_InvokeSendingData(rm, () => {
@@ -315,7 +319,15 @@ export class RemoteInvoke {
                     cleanMessageListener();
 
                     const { data, clean } = this._prepare_InvokeReceivingData(msg);
-                    callback(undefined, data).then(clean).catch(err => { clean(); throw err; });
+
+                    callback(undefined, data).then(() => {
+                        clean();
+                        sendInvokeFinish(msg);
+                    }).catch(err => {
+                        clean();
+                        sendInvokeFinish(msg);
+                        throw err;
+                    });
                 });
 
                 this._messageListener.receiveOnce([MessageType.invoke_failed, rm.receiver, rm.requestMessageID] as any, (msg: InvokeFailedMessage) => {
@@ -349,6 +361,7 @@ export class RemoteInvoke {
                             reject(error);
                         } finally {
                             clean();
+                            sendInvokeFinish(msg);
                         }
                     });
 
