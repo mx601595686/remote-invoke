@@ -29,7 +29,9 @@ describe('测试remote-invoke', function () {
                 s_rv = new RemoteInvoke(new BinaryWS_socket(s_socket), 'server');
                 c_rv = new RemoteInvoke(new BinaryWS_socket(c_socket), 'client');
 
+                s_rv.printMessage = true;
                 c_rv.printMessage = true;
+
                 (s_rv.timeout as any) = 10;
                 (c_rv.timeout as any) = 10;
 

@@ -18,10 +18,16 @@ export class BinaryWS_socket implements ConnectionSocket {
     constructor(private readonly _socket: BaseSocket) {
         this._socket.once('open', () => this.onOpen && this.onOpen());
         this._socket.once('close', () => this.onClose && this.onClose());
-        this._socket.once('message', (header, body) => this.onMessage && this.onMessage(header, body));
+        this._socket.on('message', (header, body) => {
+            //console.log('[binary-ws] [收到]', header);  //测试使用
+
+            this.onMessage && this.onMessage(header, body)
+        });
     }
 
     send(header: string, body: Buffer): Promise<void> {
+        //console.log('[binary-ws] [发送]', header);  //测试使用
+
         const result = this._socket.send(header, body);
         const timer = setTimeout(() => {
             this._socket.cancel(result.messageID)

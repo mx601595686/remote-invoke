@@ -63,7 +63,6 @@ export declare enum MessageType {
     /**
      * 调用者接收完被调用者传回的文件之后，通知被调用者此次调用请求彻底结束。
      * 如果被调用者在invoke_response中没有返回文件则不需要返回该消息。
-     * 被调用者收到这条消息后就立即清理资源，不再响应关于这条消息的任何请求。
      *
      * 头部格式：
      * [
@@ -75,11 +74,12 @@ export declare enum MessageType {
      * [
      *      responseMessageID:number    //响应消息编号
      * ]
+     *
+     * 注意：被调用者收到这条消息后就立即清理资源，不再响应关于这条消息的任何请求。
      */
     invoke_finish = 2,
     /**
      * 被调用者在处理请求的过程中出现了错误,告知调用者错误的原因。
-     * 当把消息发出去之后被调用者就立即清理资源，不再响应关于这条消息的任何请求。
      *
      * 头部格式：
      * [
@@ -92,6 +92,8 @@ export declare enum MessageType {
      *      requestMessageID:number     //调用者所设置的消息编号
      *      error:string                //要反馈的失败原因
      * ]
+     *
+     * 注意：当把消息发出去之后被调用者就立即清理资源，不再响应关于这条消息的任何请求。
      */
     invoke_failed = 3,
     /**

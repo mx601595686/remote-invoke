@@ -17,8 +17,8 @@ export interface ReceivingFile {
     name: string;
     /**
      * 一段一段地获取文件。
-     * 回调函数：err：指示传输过程中是否出现了错误，isEnd：指示是否传输完成，index：当前的文件片段的编号，data：文件片段数据。
-     * 如果返回true则表示不再继续获取了。
+     *
+     * 回调函数：err：指示传输过程中是否出现了错误，isEnd：指示是否传输完成，index：当前的文件片段的编号，data：文件片段数据。如果返回true则表示不再继续获取了。
      * startIndex：从指定位置开始接收文件，跳过之前部分,用于断点传输。
      */
     onData(callback: (err: Error | undefined, isEnd: boolean, index: number, data: Buffer) => Promise<void | boolean>, startIndex?: number): void;

@@ -433,13 +433,13 @@ export class RemoteInvoke {
                     .location
                     .location.cyan.bold
                     .title
-                    .content('remote-invoke', '发送', MessageType[msg.type], JSON.stringify(msg, undefined, 2));
+                    .content('remote-invoke', '发送', MessageType[msg.type], JSON.stringify(msg, undefined, 4));
             else
                 log
                     .location
                     .location.green.bold
                     .title
-                    .content('remote-invoke', '收到', MessageType[msg.type], JSON.stringify(msg, undefined, 2));
+                    .content('remote-invoke', '收到', MessageType[msg.type], JSON.stringify(msg, undefined, 4));
     }
 
     /**
@@ -614,16 +614,15 @@ export class RemoteInvoke {
                             send_finish(msg);
                         }
                     } else {
-                        sendingData.file(index)
-                            .then(data => {
-                                if (Buffer.isBuffer(data)) {
-                                    this._sendMessage(InvokeFileResponseMessage.create(this, msg, data)).catch(err => send_error(msg, err));
-                                } else {
-                                    send_finish(msg);
-                                }
-                            }).catch(err => {
-                                send_error(msg, err);
-                            });
+                        sendingData.file(index).then(data => {
+                            if (Buffer.isBuffer(data)) {
+                                this._sendMessage(InvokeFileResponseMessage.create(this, msg, data)).catch(err => send_error(msg, err));
+                            } else {
+                                send_finish(msg);
+                            }
+                        }).catch(err => {
+                            send_error(msg, err);
+                        });
                     }
                 });
             });
