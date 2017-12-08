@@ -1,5 +1,7 @@
-export * from './RemoteInvoke';
-export * from './common/ConnectionPort';
-export * from './common/MessageType';
-export * from './common/RemoteInvokeConfig';
-export * from './common/SendingData';
+export * from './classes/MessageData';
+export * from './classes/RemoteInvoke';
+
+export * from './interfaces/ConnectionSocket';
+export * from './interfaces/InvokeReceivingData';
+export * from './interfaces/InvokeSendingData';
+export * from './interfaces/MessageType';
