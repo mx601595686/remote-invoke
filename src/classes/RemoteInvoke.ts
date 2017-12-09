@@ -45,6 +45,11 @@ export class RemoteInvoke {
     readonly filePieceSize = 512 * 1024;
 
     /**
+     * 消息path的最大长度
+     */
+    readonly pathMaxLength = 256;
+
+    /**
      * 当前模块名称
      */
     readonly moduleName: string;
@@ -449,34 +454,20 @@ export class RemoteInvoke {
     /**
      * 打印收到或发送的消息
      * @param sendOrReceive 如果是发送则为true，如果是接收则为false
-     * @param desc 描述
-     * @param data 要打印的数据
+     * @param msg 要打印的消息
      */
     private _printMessage(sendOrReceive: boolean, msg: MessageData) {
-        //过滤或转换要序列化的属性
-        const filter = (key: string, value: any) => {
-            if (key === '_data')
-                return undefined;
-            else if (value != null && value.type === 'Buffer' && Array.isArray(value.data))
-                //这样写是因为Buffer.isBuffer在JSON.stringify中没用
-                return `<Buffer length=${value.data.length}>`;
-            else
-                return value;
-        };
-
         if (this.printMessage)
             if (sendOrReceive)
                 log
                     .location
                     .location.cyan.bold
-                    .title
-                    .content('remote-invoke', '发送', MessageType[msg.type], JSON.stringify(msg, filter, 4));
+                    .content('remote-invoke', '发送', msg.toString());
             else
                 log
                     .location
                     .location.green.bold
-                    .title
-                    .content('remote-invoke', '收到', MessageType[msg.type], JSON.stringify(msg, filter, 4));
+                    .content('remote-invoke', '收到', msg.toString());
     }
 
     /**
