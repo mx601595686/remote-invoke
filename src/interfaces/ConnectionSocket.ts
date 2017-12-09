@@ -6,22 +6,22 @@ import { RemoteInvoke } from '../classes/RemoteInvoke';
 export interface ConnectionSocket {
 
     /**
-     * 传入构造后由RemoteInvoke赋值
+     * 由remote-invoke赋值
      */
     ri: RemoteInvoke;
 
     /**
-     * 由RemoteInvoke注册的接收消息回调函数
+     * 由remote-invoke注册的接收消息回调函数
      */
     onMessage: (header: string, body: Buffer) => void;
 
     /**
-     * 由RemoteInvoke注册的网络连接打开回调
+     * 由remote-invoke注册的网络连接打开回调
      */
     onOpen: () => void;
 
     /**
-     * 由RemoteInvoke注册的网络连接断开回调
+     * 由remote-invoke注册的网络连接断开回调
      */
     onClose: () => void;
 
