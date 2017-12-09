@@ -89,7 +89,7 @@ export class RemoteInvoke {
                         const eventName = [msg.type, msg.path] as any;
 
                         if (this._messageListener.has(eventName))
-                            this._messageListener.trigger([msg.type, msg.path] as any, msg);
+                            this._messageListener.trigger(eventName, msg);
                         else
                             this._sendMessage(InvokeFailedMessage.create(this, msg, new Error("调用的方法不存在")))
                                 .catch(err => this._printError('响应对方"调用的方法不存在"失败', err));
