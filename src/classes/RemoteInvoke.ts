@@ -533,20 +533,31 @@ export class RemoteInvoke {
                         (<any>callback)(new Error('不可重复下载文件'));
                     } else {
                         start = true;
-                        index = startIndex - 1;
 
-                        cb_error = err => {    //确保发生错误后就不允许触发其他操作了
+                        cb_error = err => {    //确保只触发一次
                             (<any>callback)(err);
                             cb_receive = cb_error = () => { };
                         };
                         cb_receive = (data, isEnd) => {
-                            if (isEnd)
+                            if (isEnd) {
                                 callback(undefined, isEnd, index, data);
-                            else
-                                callback(undefined, isEnd, index, data).then(result => result !== true && downloadNext());
+                                cb_receive = cb_error = () => { };  //下载完成后就不允许再触发了
+                            } else
+                                callback(undefined, isEnd, index, data).then(result => {
+                                    if (result === true)    //不再下载了
+                                        cb_receive = cb_error = () => { };
+                                    else
+                                        downloadNext();
+                                });
                         };
 
-                        downloadNext();
+                        if (item.splitNumber != null && startIndex >= item.splitNumber) { //如果传入的起始位置已经到达了末尾
+                            index = startIndex;
+                            cb_receive(Buffer.alloc(0), true);
+                        } else {
+                            index = startIndex - 1;
+                            downloadNext();
+                        }
                     }
                 },
                 getFile: () => new Promise<Buffer>((resolve, reject) => {   //下载文件回调
