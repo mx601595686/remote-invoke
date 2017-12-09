@@ -193,7 +193,32 @@ describe('测试remote-invoke', function () {
             });
         });
 
-        describe('测试下载文件延长调用超时', function () { });
+        it.only('测试下载文件延长调用超时', function (done) {
+            this.timeout(20 * 1000);
+
+            s_rv.export('test', async (data) => {
+                return {
+                    data: null, files: [{
+                        name: 'test file',
+                        file: (index) => {
+                            return new Promise((resolve, reject) => {
+                                console.log(index);
+                                if (index > 1)
+                                    resolve();
+                                else
+                                    setTimeout(resolve, 3 * 1000, Buffer.alloc(10));
+                            });
+                        }
+                    }]
+                };
+            });
+
+            const startTime = (new Date).getTime();
+            c_rv.invoke('server', 'test').then(data => {
+                expect((new Date).getTime()).greaterThan(startTime + 5 * 1000);
+                done();
+            }).catch(err => done(err));
+        });
 
     });
 

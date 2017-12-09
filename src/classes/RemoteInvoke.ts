@@ -461,13 +461,15 @@ export class RemoteInvoke {
             if (sendOrReceive)
                 log
                     .location
-                    .location.cyan.bold
-                    .content('remote-invoke', '发送', msg.toString());
+                    .location
+                    .text.cyan.bold.round
+                    .content('remote-invoke', this.moduleName, '发送', msg.toString());
             else
                 log
                     .location
-                    .location.green.bold
-                    .content('remote-invoke', '收到', msg.toString());
+                    .location
+                    .text.green.bold.round
+                    .content('remote-invoke', this.moduleName, '收到', msg.toString());
     }
 
     /**
