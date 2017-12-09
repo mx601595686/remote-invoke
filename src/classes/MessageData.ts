@@ -607,10 +607,10 @@ export class BroadcastCloseFinishMessage extends MessageData {
         return bcf;
     }
 
-    static create(ri: RemoteInvoke, bom: BroadcastOpenMessage) {
+    static create(ri: RemoteInvoke, bcm: BroadcastCloseMessage) {
         const bcf = new BroadcastCloseFinishMessage();
 
-        bcf.messageID = bom.messageID;
+        bcf.messageID = bcm.messageID;
 
         return bcf;
     }
