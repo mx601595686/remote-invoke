@@ -4,7 +4,7 @@ import log from 'log-formatter';
 
 import { MessageType } from '../interfaces/MessageType';
 import { ConnectionSocket } from "../interfaces/ConnectionSocket";
-import { SendingFile } from "../interfaces/InvokeSendingData";
+import { SendingFile, InvokeSendingData } from "../interfaces/InvokeSendingData";
 import {
     InvokeRequestMessage,
     InvokeResponseMessage,
@@ -237,19 +237,50 @@ export abstract class MessageRouting {
         });
     }
 
-    protected _send_InvokeRequestMessage() {
+    protected _send_InvokeRequestMessage(receiver: string, path: string, data: InvokeSendingData): Promise<InvokeResponseMessage> {
+        return new Promise((resolve, reject) => {
+            const rm = InvokeRequestMessage.create(this, this._messageID++, receiver, path, data);
 
+            const cleanMessageListener = () => {   //清理注册的消息监听器
+                this._messageListener.cancel([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any);
+                this._messageListener.cancel([MessageType.invoke_failed, rm.receiver, rm.requestMessageID] as any);
+            };
+
+            const clean = this._send_SendingFile(rm, () => { cleanMessageListener(); reject(new Error('请求超时')); });
+
+            this._send_MessageData(rm).then(() => {
+                this._messageListener.receiveOnce([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any, (msg: InvokeResponseMessage) => {
+                    clean(); cleanMessageListener(); resolve(msg);
+                });
+
+                this._messageListener.receiveOnce([MessageType.invoke_failed, rm.receiver, rm.requestMessageID] as any, (msg: InvokeFailedMessage) => {
+                    clean(); cleanMessageListener(); reject(new Error(msg.error));
+                });
+            }).catch(err => { clean(); reject(err); });
+        });
     }
 
-    protected _send_InvokeResponseMessage() {
+    protected _send_InvokeResponseMessage(msg: InvokeRequestMessage, data: InvokeSendingData): void {
+        const rm = InvokeResponseMessage.create(this, msg, this._messageID++, data);
 
+        this._send_MessageData(rm).then(() => {
+            if (rm.files.length === 0) {
+                this._send_SendingFile(rm, () => { })();
+            } else {
+                const clean = this._send_SendingFile(rm, () => {
+                    this._messageListener.cancel([MessageType.invoke_finish, rm.receiver, rm.responseMessageID] as any);
+                });
+
+                this._messageListener.receiveOnce([MessageType.invoke_finish, rm.receiver, rm.responseMessageID] as any, clean);
+            }
+        }).catch(err => this._printError(`向对方发送"InvokeResponseMessage"失败`, err));
     }
 
     /**
      * 方便_send_InvokeRequestMessage与_send_InvokeResponseMessage发送文件。
      * 发送超时后会自动清理资源，也可使用返回的clean方法提前清理资源
      */
-    private _send_SendingFile(msg: InvokeRequestMessage | InvokeResponseMessage, onTimeout: Function): Function {
+    private _send_SendingFile(msg: InvokeRequestMessage | InvokeResponseMessage, onTimeout: () => void): () => void {
         const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
         const clean = () => {  //清理资源回调
             clearTimeout(timer);
@@ -302,8 +333,9 @@ export abstract class MessageRouting {
     }
 
     protected _send_InvokeFinishMessage(msg: InvokeResponseMessage): void {
-        this._send_MessageData(InvokeFinishMessage.create(this, msg))
-            .catch(err => this._printError(`向对方发送"InvokeFinishMessage"失败`, err));
+        if (msg.files.length > 0)
+            this._send_MessageData(InvokeFinishMessage.create(this, msg))
+                .catch(err => this._printError(`向对方发送"InvokeFinishMessage"失败`, err));
     }
 
     protected _send_InvokeFailedMessage(msg: InvokeRequestMessage, error: Error): void {

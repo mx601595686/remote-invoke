@@ -54,22 +54,7 @@ export class RemoteInvoke extends MessageRouting {
 
             try {
                 const result = await func(data) || { data: null };
-                const rm = InvokeResponseMessage.create(this, msg, this._messageID++, result);
-
-                try {
-                    if (rm.files.length === 0) {
-                        const clean = await this._prepare_InvokeSendingData(rm);
-                        clean();
-                    } else {
-                        const clean = await this._prepare_InvokeSendingData(rm, () => {
-                            this._messageListener.cancel([MessageType.invoke_finish, rm.receiver, rm.responseMessageID] as any);
-                        });
-
-                        this._messageListener.receiveOnce([MessageType.invoke_finish, rm.receiver, rm.responseMessageID] as any, clean);
-                    }
-                } catch (error) {
-                    this._printError('发送"调用响应"失败', error);
-                }
+                this._send_InvokeResponseMessage(msg, result);
             } catch (error) {
                 this._send_InvokeFailedMessage(msg, error);
             } finally {
@@ -104,16 +89,6 @@ export class RemoteInvoke extends MessageRouting {
      */
     invoke(receiver: string, path: string, data: InvokeSendingData | undefined, callback: (err: Error | undefined, data: InvokeReceivingData) => Promise<void>): void
     invoke(receiver: string, path: string, data: InvokeSendingData = { data: null }, callback?: (err: Error | undefined, data: InvokeReceivingData) => Promise<void>): any {
-        const rm = InvokeRequestMessage.create(this, this._messageID++, receiver, path, data);
-        const cleanMessageListener = () => {   //清理注册的消息监听器
-            this._messageListener.cancel([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any);
-            this._messageListener.cancel([MessageType.invoke_failed, rm.receiver, rm.requestMessageID] as any);
-        };
-        const sendInvokeFinish = (msg: InvokeResponseMessage) => {  //响应被调用者，调用结束
-            if (msg.files.length > 0)
-                this._send_InvokeFinishMessage(msg);
-        }
-
         if (callback) {   //回调函数版本
             this._prepare_InvokeSendingData(rm, () => {
                 cleanMessageListener();
