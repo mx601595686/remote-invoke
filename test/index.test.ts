@@ -8,7 +8,7 @@ import { BinaryWS_socket } from './BinaryWS_socket';
 
 //注意：测试需要8080端口，请确保不会被占用
 describe('测试remote-invoke', function () {
-    let server: Server;
+    let server: Server;           //ws服务器
     let s_socket: ServerSocket;   //服务器ws
     let c_socket: ServerSocket;   //客户端ws
     let s_rv: RemoteInvoke;
@@ -309,7 +309,7 @@ describe('测试remote-invoke', function () {
                 this.timeout(20 * 1000);
 
                 s_rv.export('test', async (data) => {
-                    await data.files[0].getFile();
+                    await data.files[0].getFile();  //这里会收到错误
                 });
 
                 c_rv.invoke('server', 'test', { data: null, files: [{ name: '', file: async () => { throw new Error('发送文件异常'); } }] })

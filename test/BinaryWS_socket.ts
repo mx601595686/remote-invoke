@@ -21,7 +21,7 @@ export class BinaryWS_socket implements ConnectionSocket {
         this._socket.on('message', (header, body) => {
             //console.log('[binary-ws] [收到]', header);  //测试使用
 
-            this.onMessage && this.onMessage(header, body)
+            this.onMessage && this.onMessage(header, body);
         });
     }
 
@@ -33,6 +33,11 @@ export class BinaryWS_socket implements ConnectionSocket {
             this._socket.cancel(result.messageID)
         }, this.ri.timeout);
 
-        return result.then(() => clearTimeout(timer));
+        return result
+            .then(() => clearTimeout(timer))
+            .catch(err => {
+                clearTimeout(timer);
+                throw err;
+            });
     }
 }
