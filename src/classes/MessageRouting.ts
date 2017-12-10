@@ -246,7 +246,7 @@ export abstract class MessageRouting {
                 this._messageListener.cancel([MessageType.invoke_failed, rm.receiver, rm.requestMessageID] as any);
             };
 
-            const clean = this._send_SendingFile(rm, () => { cleanMessageListener(); reject(new Error('请求超时')); });
+            const clean = this._send_File(rm, () => { cleanMessageListener(); reject(new Error('请求超时')); });
 
             this._send_MessageData(rm).then(() => {
                 this._messageListener.receiveOnce([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any, (msg: InvokeResponseMessage) => {
@@ -265,9 +265,9 @@ export abstract class MessageRouting {
 
         this._send_MessageData(rm).then(() => {
             if (rm.files.length === 0) {
-                this._send_SendingFile(rm, () => { })();
+                this._send_File(rm, () => { })();
             } else {
-                const clean = this._send_SendingFile(rm, () => {
+                const clean = this._send_File(rm, () => {
                     this._messageListener.cancel([MessageType.invoke_finish, rm.receiver, rm.responseMessageID] as any);
                 });
 
@@ -280,7 +280,7 @@ export abstract class MessageRouting {
      * 方便_send_InvokeRequestMessage与_send_InvokeResponseMessage发送文件。
      * 发送超时后会自动清理资源，也可使用返回的clean方法提前清理资源
      */
-    private _send_SendingFile(msg: InvokeRequestMessage | InvokeResponseMessage, onTimeout: () => void): () => void {
+    private _send_File(msg: InvokeRequestMessage | InvokeResponseMessage, onTimeout: () => void): () => void {
         const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
         const clean = () => {  //清理资源回调
             clearTimeout(timer);
@@ -348,37 +348,32 @@ export abstract class MessageRouting {
      */
     protected _send_InvokeFileRequestMessage(msg: InvokeRequestMessage | InvokeResponseMessage, fileID: number, index: number): Promise<Buffer | void> {
         return new Promise((resolve, reject) => {
-            const splitNumber = msg.files[fileID].splitNumber;  //在该程序中fileID与数组编号是相同的
-            if (splitNumber && index >= splitNumber) {          //判断给定的index是否已经超出了范围
-                resolve();
-            } else {
-                const message = InvokeFileRequestMessage.create(this, msg, fileID, index);
-                const timer = setTimeout(() => { clean(); reject(new Error('请求超时')); }, this.timeout);
-                const clean = () => {
-                    clearTimeout(timer);
-                    this._messageListener.cancel([MessageType.invoke_file_response, message.receiver, message.messageID, fileID] as any);
-                    this._messageListener.cancel([MessageType.invoke_file_failed, message.receiver, message.messageID, fileID] as any);
-                    this._messageListener.cancel([MessageType.invoke_file_finish, message.receiver, message.messageID, fileID] as any);
-                };
+            const message = InvokeFileRequestMessage.create(this, msg, fileID, index);
+            const timer = setTimeout(() => { clean(); reject(new Error('请求超时')); }, this.timeout);
+            const clean = () => {
+                clearTimeout(timer);
+                this._messageListener.cancel([MessageType.invoke_file_response, message.receiver, message.messageID, fileID] as any);
+                this._messageListener.cancel([MessageType.invoke_file_failed, message.receiver, message.messageID, fileID] as any);
+                this._messageListener.cancel([MessageType.invoke_file_finish, message.receiver, message.messageID, fileID] as any);
+            };
 
-                this._send_MessageData(message).then(() => {
-                    //监听下载到的文件
-                    this._messageListener.receiveOnce([MessageType.invoke_file_response, message.receiver, message.messageID, fileID] as any, (msg: InvokeFileResponseMessage) => {
-                        clean();
-                        index !== msg.index ? reject(new Error('文件在传输过程中，顺序发生错乱')) : resolve(msg.data);
-                    });
+            this._send_MessageData(message).then(() => {
+                //监听下载到的文件
+                this._messageListener.receiveOnce([MessageType.invoke_file_response, message.receiver, message.messageID, fileID] as any, (msg: InvokeFileResponseMessage) => {
+                    clean();
+                    index !== msg.index ? reject(new Error('文件在传输过程中，顺序发生错乱')) : resolve(msg.data);
+                });
 
-                    //监听下载文件失败
-                    this._messageListener.receiveOnce([MessageType.invoke_file_failed, message.receiver, message.messageID, fileID] as any, (msg: InvokeFileFailedMessage) => {
-                        clean(); reject(new Error(msg.error));
-                    });
+                //监听下载文件失败
+                this._messageListener.receiveOnce([MessageType.invoke_file_failed, message.receiver, message.messageID, fileID] as any, (msg: InvokeFileFailedMessage) => {
+                    clean(); reject(new Error(msg.error));
+                });
 
-                    //监听下载文件结束
-                    this._messageListener.receiveOnce([MessageType.invoke_file_finish, message.receiver, message.messageID, fileID] as any, (msg: InvokeFileFinishMessage) => {
-                        clean(); resolve();
-                    });
-                }).catch(err => { clean(); reject(err); });
-            }
+                //监听下载文件结束
+                this._messageListener.receiveOnce([MessageType.invoke_file_finish, message.receiver, message.messageID, fileID] as any, (msg: InvokeFileFinishMessage) => {
+                    clean(); resolve();
+                });
+            }).catch(err => { clean(); reject(err); });
         });
     }
 

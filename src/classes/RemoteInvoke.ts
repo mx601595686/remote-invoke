@@ -1,27 +1,8 @@
-import { EventSpace } from 'eventspace';
-import { EventLevel } from 'eventspace/bin/classes/EventLevel';
-import log from 'log-formatter';
-
 import { MessageType } from '../interfaces/MessageType';
 import { ConnectionSocket } from "../interfaces/ConnectionSocket";
 import { InvokeReceivingData, ReceivingFile } from '../interfaces/InvokeReceivingData';
 import { InvokeSendingData, SendingFile } from '../interfaces/InvokeSendingData';
-import {
-    InvokeRequestMessage,
-    InvokeResponseMessage,
-    InvokeFinishMessage,
-    InvokeFailedMessage,
-    InvokeFileRequestMessage,
-    InvokeFileResponseMessage,
-    InvokeFileFailedMessage,
-    InvokeFileFinishMessage,
-    BroadcastMessage,
-    BroadcastOpenMessage,
-    BroadcastOpenFinishMessage,
-    BroadcastCloseMessage,
-    BroadcastCloseFinishMessage,
-    MessageData
-} from './MessageData';
+import { InvokeRequestMessage, InvokeResponseMessage } from './MessageData';
 import { MessageRouting } from './MessageRouting';
 
 export class RemoteInvoke extends MessageRouting {
@@ -90,69 +71,36 @@ export class RemoteInvoke extends MessageRouting {
     invoke(receiver: string, path: string, data: InvokeSendingData | undefined, callback: (err: Error | undefined, data: InvokeReceivingData) => Promise<void>): void
     invoke(receiver: string, path: string, data: InvokeSendingData = { data: null }, callback?: (err: Error | undefined, data: InvokeReceivingData) => Promise<void>): any {
         if (callback) {   //回调函数版本
-            this._prepare_InvokeSendingData(rm, () => {
-                cleanMessageListener();
-                (callback as any)(new Error('请求超时'));
-            }).then(cleanSendRequest => {
-                this._messageListener.receiveOnce([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any, (msg: InvokeResponseMessage) => {
-                    cleanSendRequest();
-                    cleanMessageListener();
-
-                    const { data, clean } = this._prepare_InvokeReceivingData(msg);
-
-                    callback(undefined, data).then(() => {
-                        clean();
-                        sendInvokeFinish(msg);
-                    }).catch(err => {
-                        clean();
-                        sendInvokeFinish(msg);
-                        throw err;
-                    });
-                });
-
-                this._messageListener.receiveOnce([MessageType.invoke_failed, rm.receiver, rm.requestMessageID] as any, (msg: InvokeFailedMessage) => {
-                    cleanSendRequest();
-                    cleanMessageListener();
-
-                    (callback as any)(new Error(msg.error));
+            this._send_InvokeRequestMessage(receiver, path, data).then(msg => {
+                const { data, clean } = this._prepare_InvokeReceivingData(msg);
+                callback(undefined, data).then(() => {
+                    clean();
+                    this._send_InvokeFinishMessage(msg);
+                }).catch(err => {
+                    clean();
+                    this._send_InvokeFinishMessage(msg);
+                    throw err;
                 });
             }).catch(callback as any);
         } else {
-            return new Promise((resolve, reject) => {
-                this._prepare_InvokeSendingData(rm, () => {
-                    cleanMessageListener();
-                    reject(new Error('请求超时'));
-                }).then(cleanSendRequest => {
-                    this._messageListener.receiveOnce([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any, async (msg: InvokeResponseMessage) => {
-                        cleanSendRequest();
-                        cleanMessageListener();
+            return (async () => {
+                const msg = await this._send_InvokeRequestMessage(receiver, path, data);
+                const { data: r_data, clean } = this._prepare_InvokeReceivingData(msg);
 
-                        const { data, clean } = this._prepare_InvokeReceivingData(msg);
+                try {
+                    const result: { name: string, data: Buffer }[] = [];
 
-                        try {
-                            const result: { name: string, data: Buffer }[] = [];
+                    for (const item of r_data.files) {
+                        result.push({ name: item.name, data: await item.getFile() });
+                    }
 
-                            for (const item of data.files) {
-                                result.push({ name: item.name, data: await item.getFile() });
-                            }
-
-                            resolve({ data: data.data, files: result });
-                        } catch (error) {
-                            reject(error);
-                        } finally {
-                            clean();
-                            sendInvokeFinish(msg);
-                        }
-                    });
-
-                    this._messageListener.receiveOnce([MessageType.invoke_failed, rm.receiver, rm.requestMessageID] as any, (msg: InvokeFailedMessage) => {
-                        cleanSendRequest();
-                        cleanMessageListener();
-
-                        reject(new Error(msg.error));
-                    });
-                }).catch(reject);
-            });
+                    return { data: data.data, files: result };
+                } catch (error) {
+                    throw error;
+                } finally {
+                    clean();
+                }
+            })();
         }
     }
 
@@ -208,79 +156,78 @@ export class RemoteInvoke extends MessageRouting {
 
         const files = msg.files.map(item => {
             let start: boolean = false;             //是否已经开始获取了，主要是用于防止重复下载
-            let index = -1;                         //现在接收到第几个文件片段了
+            let index = 0;                          //现在接收到第几个文件片段了
             let downloadedSize = 0;                 //已下载大小
 
             const downloadNext = () => {            //下载下一个文件片段
-                this._send_InvokeFileRequestMessage(msg, item.id, ++index)
-                    .then(data => {
+                if (item.splitNumber && index >= item.splitNumber) {  //判断是否下载完了
+                    return Promise.resolve();
+                } else {
+                    return this._send_InvokeFileRequestMessage(msg, item.id, index++).then(data => {
                         if (data) {
                             downloadedSize += data.length;
-                            if (item.size != null && downloadedSize > item.size)
-                                cb_error(new Error('下载到的文件大小超出了发送者所描述的大小'));
-                            else
-                                cb_receive(data, false);
-                        } else
-                            cb_receive(Buffer.alloc(0), true);
-                    })
-                    .catch(err => cb_error(err));
-            };
 
-            let cb_error: (err: Error) => void; //下载出错回调
-            let cb_receive: (data: Buffer, isEnd: boolean) => void; //接收文件回调
+                            if (item.size != null && downloadedSize > item.size)
+                                throw new Error('下载到的文件大小超出了发送者所描述的大小');
+                        }
+
+                        return data;
+                    });
+                }
+            };
 
             const result: ReceivingFile = {
                 size: item.size,
                 splitNumber: item.splitNumber,
                 name: item.name,
-                onData: (callback, startIndex = 0) => {
+                onData: async (callback, startIndex = 0) => {
                     if (start) {
                         (<any>callback)(new Error('不可重复下载文件'));
                     } else {
                         start = true;
 
-                        cb_error = err => {    //确保只触发一次
-                            (<any>callback)(err);
-                            cb_receive = cb_error = () => { };
-                        };
-                        cb_receive = (data, isEnd) => {
-                            if (isEnd) {
-                                callback(undefined, isEnd, index, data);
-                                cb_receive = cb_error = () => { };  //下载完成后就不允许再触发了
-                            } else
-                                callback(undefined, isEnd, index, data).then(result => {
-                                    if (result === true)    //不再下载了
-                                        cb_receive = cb_error = () => { };
-                                    else
-                                        downloadNext();
-                                });
-                        };
-
                         if (item.splitNumber != null && startIndex >= item.splitNumber) { //如果传入的起始位置已经到达了末尾
-                            index = startIndex;
-                            cb_receive(Buffer.alloc(0), true);
+                            callback(undefined, true, startIndex, Buffer.alloc(0));
                         } else {
-                            index = startIndex - 1;
-                            downloadNext();
+                            index = startIndex;
+
+                            while (true) {
+                                try {
+                                    var data = await downloadNext();
+                                } catch (error) {
+                                    (<any>callback)(error);
+                                    break;
+                                }
+
+                                if (data) {
+                                    const isNext = await callback(undefined, false, index, data);
+                                    if (isNext === true) break;
+                                } else {
+                                    callback(undefined, true, index, Buffer.alloc(0));
+                                    break;
+                                }
+                            }
                         }
                     }
                 },
-                getFile: () => new Promise<Buffer>((resolve, reject) => {   //下载文件回调
+                getFile: async () => {   //下载文件回调
                     if (start) {
-                        reject(new Error('不可重复下载文件'));
+                        throw new Error('不可重复下载文件');
                     } else {
                         start = true;
                         const filePieces: Buffer[] = [];    //下载到的文件片段
 
-                        cb_error = reject;
-                        cb_receive = (data, isEnd) => {
-                            filePieces.push(data);
-                            isEnd ? resolve(Buffer.concat(filePieces)) : downloadNext();
-                        };
+                        while (true) {
+                            const data = await downloadNext();
 
-                        downloadNext();
+                            if (data) {
+                                filePieces.push(data);
+                            } else {
+                                return Buffer.concat(filePieces);
+                            }
+                        }
                     }
-                })
+                }
             }
 
             return result;
@@ -288,28 +235,9 @@ export class RemoteInvoke extends MessageRouting {
 
         return {
             data: { data: msg.data, files },
-            clean: () => { //清理资源
+            clean: () => { //清理正在下载的
                 this._messageListener.triggerDescendants([MessageType.invoke_file_failed, msg.sender, messageID] as any, { error: '下载终止' });
-
-                this._messageListener.cancelDescendants([MessageType.invoke_file_response, msg.sender, messageID] as any);
-                this._messageListener.cancelDescendants([MessageType.invoke_file_failed, msg.sender, messageID] as any);
-                this._messageListener.cancelDescendants([MessageType.invoke_file_finish, msg.sender, messageID] as any);
             }
         };
-    }
-
-    /**
-     * 准备发送文件，返回清理资源回调。如果超时或发送错误会自动清理资源
-     * @param msg 要发送的数据
-     * @param onTimeout 没有文件请求超时
-     */
-    private async _prepare_InvokeSendingData(msg: InvokeRequestMessage | InvokeResponseMessage, onTimeout?: () => void) {
-
-        try {
-            await this._sendMessage(msg);
-        } catch (error) {
-            clean(); throw error;
-        }
-
     }
 }
