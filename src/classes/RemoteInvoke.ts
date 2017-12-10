@@ -71,8 +71,7 @@ export class RemoteInvoke extends MessageRouting {
                     this._printError('发送"调用响应"失败', error);
                 }
             } catch (error) {
-                this._sendMessage(InvokeFailedMessage.create(this, msg, error))
-                    .catch(err => this._printError('发送"调用失败响应"失败', err));
+                this._send_InvokeFailedMessage(msg, error);
             } finally {
                 clean();
             }
@@ -222,22 +221,11 @@ export class RemoteInvoke extends MessageRouting {
      * @param path 广播的路径
      * @param data 要发送的数据
      */
-    async broadcast(path: string, data: any = null): Promise<void> {
-        //判断对方是否注册的有关于这条广播的监听器
-        if (this._messageListener.hasAncestors([MessageType._broadcast_white_list, ...path.split('.')] as any)) {
-            await this._sendMessage(BroadcastMessage.create(this, path, data));
-        }
+    broadcast(path: string, data: any = null): Promise<void> {
+        return this._send_BroadcastMessage(path, data);
     }
 
-    /**
-     * 便于使用socket发送消息
-     */
-    private _sendMessage(msg: MessageData) {
-        const result = msg.pack();
-        this._printMessage(true, msg);
 
-        return this.socket.send(result[0], result[1]);
-    }
 
 
 
@@ -445,65 +433,5 @@ export class RemoteInvoke extends MessageRouting {
         }
 
         return clean;
-    }
-
-    /**
-      * 发送BroadcastOpenMessage
-      * @param broadcastSender 广播的发送者
-      * @param path 广播路径
-      */
-    private _send_BroadcastOpenMessage(broadcastSender: string, path: string) {
-        if (this.socket.connected) {
-            const messageID = this._messageID++;
-
-            const result = BroadcastOpenMessage.create(this, messageID, broadcastSender, path);
-
-            const interval = () => this._sendMessage(result)
-                .catch(err => this._printError(`通知对方"现在要接收指定路径的广播"失败。broadcastSender:${broadcastSender} path:${path}`, err));
-
-            const timer = setInterval(interval, this.timeout);    //到了时间如果还没有收到对方响应就重新发送一次
-
-            this._messageListener.receiveOnce([MessageType.broadcast_open_finish, messageID] as any, () => {
-                clearInterval(timer);
-                this._messageListener.cancel([MessageType._onClose, MessageType.broadcast_open_finish, messageID] as any);
-            });
-
-            this._messageListener.receiveOnce([MessageType._onClose, MessageType.broadcast_open_finish, messageID] as any, () => {
-                clearInterval(timer);
-                this._messageListener.cancel([MessageType.broadcast_open_finish, messageID] as any);
-            });
-
-            interval();
-        }
-    }
-
-    /**
-     * 发送BroadcastCloseMessage
-     * @param broadcastSender 广播的发送者
-     * @param path 广播路径
-     */
-    private _send_BroadcastCloseMessage(broadcastSender: string, path: string) {
-        if (this.socket.connected) {
-            const messageID = this._messageID++;
-
-            const result = BroadcastCloseMessage.create(this, messageID, broadcastSender, path);
-
-            const interval = () => this._sendMessage(result)
-                .catch(err => this._printError(`通知对方"现在不再接收指定路径的广播"失败。broadcastSender:${broadcastSender} path:${path}`, err));
-
-            const timer = setInterval(interval, this.timeout);    //到了时间如果还没有收到对方响应就重新发送一次
-
-            this._messageListener.receiveOnce([MessageType.broadcast_close_finish, messageID] as any, () => {
-                clearInterval(timer);
-                this._messageListener.cancel([MessageType._onClose, MessageType.broadcast_close_finish, messageID] as any);
-            });
-
-            this._messageListener.receiveOnce([MessageType._onClose, MessageType.broadcast_close_finish, messageID] as any, () => {
-                clearInterval(timer);
-                this._messageListener.cancel([MessageType.broadcast_close_finish, messageID] as any);
-            });
-
-            interval();
-        }
     }
 }
