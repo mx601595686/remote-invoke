@@ -253,8 +253,48 @@ export abstract class MessageRouting {
             .catch(err => this._printError(`向对方发送"InvokeFailedMessage -> ${error.message}"失败`, err));
     }
 
-    protected _send_InvokeFileRequestMessage() {
+    /**
+     * 下载一个文件片段，如果返回void则表示下载完成了，超时或下载失败会抛出异常。
+     */
+    protected _send_InvokeFileRequestMessage(msg: InvokeRequestMessage | InvokeResponseMessage, fileID: number, index: number): Promise<Buffer | void> {
+        return new Promise((resolve, reject) => {
+            const splitNumber = msg.files[fileID].splitNumber;  //在该程序中fileID与数组编号是相同的
+            if (splitNumber && index >= splitNumber) {          //判断给定的index是否已经超出了范围
+                resolve();
+            } else {
+                const message = InvokeFileRequestMessage.create(this, msg, fileID, index);
+                const timer = setTimeout(() => { clean(); reject(new Error('请求超时')); }, this.timeout);
+                const clean = () => {
+                    clearTimeout(timer);
+                    this._messageListener.cancel([MessageType.invoke_file_response, msg.sender, message.messageID, fileID] as any);
+                    this._messageListener.cancel([MessageType.invoke_file_failed, msg.sender, message.messageID, fileID] as any);
+                    this._messageListener.cancel([MessageType.invoke_file_finish, msg.sender, message.messageID, fileID] as any);
+                };
 
+                this._send_MessageData(message).then(() => {
+                    //监听下载到的文件
+                    this._messageListener.receiveOnce([MessageType.invoke_file_response, msg.sender, message.messageID, fileID] as any, (msg: InvokeFileResponseMessage) => {
+                        clean();
+                        index !== msg.index ? reject(new Error('文件在传输过程中，顺序发生错乱')) : resolve(msg.data);
+                    });
+
+                    //监听下载文件失败
+                    this._messageListener.receiveOnce([MessageType.invoke_file_failed, msg.sender, message.messageID, fileID] as any, (msg: InvokeFileFailedMessage) => {
+                        clean();
+                        reject(new Error(msg.error));
+                    });
+
+                    //监听下载文件结束
+                    this._messageListener.receiveOnce([MessageType.invoke_file_finish, msg.sender, message.messageID, fileID] as any, (msg: InvokeFileFinishMessage) => {
+                        clean();
+                        resolve();
+                    });
+                }).catch(err => {
+                    clean();
+                    reject(err);
+                });
+            }
+        });
     }
 
     protected async _send_InvokeFileResponseMessage(msg: InvokeFileRequestMessage, data: Buffer): Promise<void> {

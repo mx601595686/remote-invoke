@@ -239,47 +239,24 @@ export class RemoteInvoke extends MessageRouting {
             let start: boolean = false;             //是否已经开始获取了，主要是用于防止重复下载
             let index = -1;                         //现在接收到第几个文件片段了
             let downloadedSize = 0;                 //已下载大小
-            let timer: NodeJS.Timer;                //超时计时器
 
             const downloadNext = () => {            //下载下一个文件片段
-                timer = setTimeout(() => cb_error(new Error('请求超时')), this.timeout);  //设置超时
-
-                this._sendMessage(InvokeFileRequestMessage.create(this, msg, item.id, ++index))
-                    .catch(err => { clearTimeout(timer); cb_error(new Error('网络连接异常：' + err)); });
+                this._send_InvokeFileRequestMessage(msg, item.id, ++index)
+                    .then(data => {
+                        if (data) {
+                            downloadedSize += data.length;
+                            if (item.size != null && downloadedSize > item.size)
+                                cb_error(new Error('下载到的文件大小超出了发送者所描述的大小'));
+                            else
+                                cb_receive(data, false);
+                        } else
+                            cb_receive(Buffer.alloc(0), true);
+                    })
+                    .catch(err => cb_error(err));
             };
 
             let cb_error: (err: Error) => void; //下载出错回调
             let cb_receive: (data: Buffer, isEnd: boolean) => void; //接收文件回调
-
-            //监听下载到的文件
-            this._messageListener.receive([MessageType.invoke_file_response, msg.sender, messageID, item.id] as any, (msg: InvokeFileResponseMessage) => {
-                clearTimeout(timer);
-
-                if (msg.index !== index) {
-                    cb_error(new Error('文件在传输过程中，顺序发生错乱'));
-                    return;
-                }
-
-                downloadedSize += msg.data.length;
-                if (item.size != null && downloadedSize > item.size) {
-                    cb_error(new Error('下载到的文件大小超出了发送者所描述的大小'));
-                    return;
-                }
-
-                cb_receive(msg.data, item.splitNumber != null && index + 1 >= item.splitNumber);
-            });
-
-            //监听下载文件失败
-            this._messageListener.receive([MessageType.invoke_file_failed, msg.sender, messageID, item.id] as any, (msg: InvokeFileFailedMessage) => {
-                clearTimeout(timer);
-                cb_error(new Error(msg.error));
-            });
-
-            //监听下载文件结束
-            this._messageListener.receive([MessageType.invoke_file_finish, msg.sender, messageID, item.id] as any, (msg: InvokeFileFinishMessage) => {
-                clearTimeout(timer);
-                cb_receive(Buffer.alloc(0), true);
-            });
 
             const result: ReceivingFile = {
                 size: item.size,
