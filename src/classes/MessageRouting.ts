@@ -502,7 +502,7 @@ export abstract class MessageRouting {
      * @param desc 描述 
      * @param err 错误信息
      */
-    protected _printError(desc: string, err: Error): void {
+    private _printError(desc: string, err: Error): void {
         if (this.printError)
             log.warn
                 .location.white
