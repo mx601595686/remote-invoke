@@ -4,6 +4,7 @@ import log from 'log-formatter';
 
 import { MessageType } from '../interfaces/MessageType';
 import { ConnectionSocket } from "../interfaces/ConnectionSocket";
+import { SendingFile } from "../interfaces/InvokeSendingData";
 import {
     InvokeRequestMessage,
     InvokeResponseMessage,
@@ -244,6 +245,72 @@ export abstract class MessageRouting {
 
     }
 
+    /**
+     * 方便_send_InvokeRequestMessage与_send_InvokeResponseMessage发送文件。
+     * 发送超时后会自动清理资源，也可使用返回的clean方法提前清理资源
+     */
+    private _send_SendingFile(msg: InvokeRequestMessage | InvokeResponseMessage, onTimeout: Function): Function {
+        const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
+        const clean = () => {  //清理资源回调
+            clearTimeout(timer);
+            this._messageListener.cancelDescendants([MessageType.invoke_file_request, msg.receiver, messageID] as any);
+        }
+        const timeout = () => { clean(); onTimeout(); };
+
+        let timer = setTimeout(timeout, this.timeout);
+
+        msg.files.forEach(item => {
+            let sendingData = item._data as SendingFile;
+            let index = -1;    //记录用户请求到了第几个文件片段了
+
+            const send_error = (msg: InvokeFileRequestMessage, err: Error) => {
+                sendingData.onProgress && sendingData.onProgress(err, undefined as any);
+                this._send_InvokeFileFailedMessage(msg, err);
+
+                //不允许再下载该文件了
+                this._messageListener.cancel([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any);
+            }
+
+            const send_finish = (msg: InvokeFileRequestMessage) => {
+                this._send_InvokeFileFinishMessage(msg);
+
+                //不允许再下载该文件了
+                this._messageListener.cancel([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any);
+            };
+
+            this._messageListener.receive([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any, (msg: InvokeFileRequestMessage) => {
+                clearTimeout(timer);
+                timer = setTimeout(timeout, this.timeout);
+
+                if (msg.index > index) {
+                    index = msg.index;
+                } else {
+                    send_error(msg, new Error('重复下载文件片段')); return;
+                }
+
+                if (Buffer.isBuffer(sendingData.file)) {
+                    if (index < (item.splitNumber as number))
+                        this._send_InvokeFileResponseMessage(msg, sendingData.file.slice(index * this.filePieceSize, (index + 1) * this.filePieceSize))
+                            .then(() => sendingData.onProgress && sendingData.onProgress(undefined, (index + 1) / (item.splitNumber as number)))
+                            .catch(err => send_error(msg, err));
+                    else
+                        send_finish(msg);
+                } else {
+                    sendingData.file(index).then(data => {
+                        if (Buffer.isBuffer(data)) 
+                            this._send_InvokeFileResponseMessage(msg, data).catch(err => send_error(msg, err));
+                         else 
+                            send_finish(msg);
+                    }).catch(err => {
+                        send_error(msg, err);
+                    });
+                }
+            });
+        });
+
+        return clean;
+    }
+
     protected _send_InvokeFinishMessage() {
 
     }
@@ -297,16 +364,16 @@ export abstract class MessageRouting {
         });
     }
 
-    protected async _send_InvokeFileResponseMessage(msg: InvokeFileRequestMessage, data: Buffer): Promise<void> {
-        await this._send_MessageData(InvokeFileResponseMessage.create(this, msg, data));
+    private _send_InvokeFileResponseMessage(msg: InvokeFileRequestMessage, data: Buffer): Promise<void> {
+        return this._send_MessageData(InvokeFileResponseMessage.create(this, msg, data));
     }
 
-    protected _send_InvokeFileFailedMessage(msg: InvokeFileRequestMessage, error: Error): void {
+    private _send_InvokeFileFailedMessage(msg: InvokeFileRequestMessage, error: Error): void {
         this._send_MessageData(InvokeFileFailedMessage.create(this, msg, error))
             .catch(err => this._printError(`向对方发送"InvokeFileFailedMessage-> ${error.message}"失败`, err));
     }
 
-    protected _send_InvokeFileFinishMessage(msg: InvokeFileRequestMessage): void {
+    private _send_InvokeFileFinishMessage(msg: InvokeFileRequestMessage): void {
         this._send_MessageData(InvokeFileFinishMessage.create(this, msg))
             .catch(err => this._printError('向对方发送"InvokeFileFinishMessage"失败', err));
     }

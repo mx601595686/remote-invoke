@@ -225,10 +225,6 @@ export class RemoteInvoke extends MessageRouting {
         return this._send_BroadcastMessage(path, data);
     }
 
-
-
-
-
     /**
      * 准备好下载回调。返回InvokeReceivingData与清理资源回调
      */
@@ -333,15 +329,6 @@ export class RemoteInvoke extends MessageRouting {
      * @param onTimeout 没有文件请求超时
      */
     private async _prepare_InvokeSendingData(msg: InvokeRequestMessage | InvokeResponseMessage, onTimeout?: () => void) {
-        const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
-        const timeout = () => { clean(); onTimeout && onTimeout(); };
-        const clean = () => {  //清理资源回调
-            clearTimeout(timer);
-            if (msg.files.length > 0)
-                this._messageListener.cancelDescendants([MessageType.invoke_file_request, msg.receiver, messageID] as any);
-        }
-
-        let timer = setTimeout(timeout, this.timeout);    //超时计时器
 
         try {
             await this._sendMessage(msg);
@@ -349,62 +336,5 @@ export class RemoteInvoke extends MessageRouting {
             clean(); throw error;
         }
 
-        if (msg.files.length > 0) { //准备文件发送
-            msg.files.forEach(item => {
-                let sendingData = item._data as SendingFile;
-                let index = -1;    //记录用户请求到了第几个文件片段了
-
-                const send_error = (msg: InvokeFileRequestMessage, err: Error) => {
-                    sendingData.onProgress && sendingData.onProgress(err, undefined as any);
-
-                    this._send_InvokeFileFailedMessage(msg, err);
-
-                    //不允许再下载该文件了
-                    this._messageListener.cancel([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any);
-                }
-
-                const send_finish = (msg: InvokeFileRequestMessage) => {
-                    this._send_InvokeFileFinishMessage(msg);
-
-                    //不允许再下载该文件了
-                    this._messageListener.cancel([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any);
-                };
-
-                this._messageListener.receive([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any, (msg: InvokeFileRequestMessage) => {
-                    clearTimeout(timer);
-                    timer = setTimeout(timeout, this.timeout);
-
-                    if (msg.index > index) {
-                        index = msg.index;
-                    } else {
-                        send_error(msg, new Error('重复下载文件片段'));
-                        return;
-                    }
-
-                    if (Buffer.isBuffer(sendingData.file)) {
-                        if (index < (item.splitNumber as number)) {
-                            sendingData.onProgress && sendingData.onProgress(undefined, (index + 1) / (item.splitNumber as number));
-
-                            this._send_InvokeFileResponseMessage(msg, sendingData.file.slice(index * this.filePieceSize, (index + 1) * this.filePieceSize))
-                                .catch(err => send_error(msg, err));
-                        } else {
-                            send_finish(msg);
-                        }
-                    } else {
-                        sendingData.file(index).then(data => {
-                            if (Buffer.isBuffer(data)) {
-                                this._send_InvokeFileResponseMessage(msg, data).catch(err => send_error(msg, err));
-                            } else {
-                                send_finish(msg);
-                            }
-                        }).catch(err => {
-                            send_error(msg, err);
-                        });
-                    }
-                });
-            });
-        }
-
-        return clean;
     }
 }
