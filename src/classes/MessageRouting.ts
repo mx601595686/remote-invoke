@@ -266,17 +266,7 @@ export abstract class MessageRouting {
             const send_error = (msg: InvokeFileRequestMessage, err: Error) => {
                 sendingData.onProgress && sendingData.onProgress(err, undefined as any);
                 this._send_InvokeFileFailedMessage(msg, err);
-
-                //不允许再下载该文件了
-                this._messageListener.cancel([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any);
             }
-
-            const send_finish = (msg: InvokeFileRequestMessage) => {
-                this._send_InvokeFileFinishMessage(msg);
-
-                //不允许再下载该文件了
-                this._messageListener.cancel([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any);
-            };
 
             this._messageListener.receive([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any, (msg: InvokeFileRequestMessage) => {
                 clearTimeout(timer);
@@ -294,13 +284,13 @@ export abstract class MessageRouting {
                             .then(() => sendingData.onProgress && sendingData.onProgress(undefined, (index + 1) / (item.splitNumber as number)))
                             .catch(err => send_error(msg, err));
                     else
-                        send_finish(msg);
+                        this._send_InvokeFileFinishMessage(msg);
                 } else {
                     sendingData.file(index).then(data => {
-                        if (Buffer.isBuffer(data)) 
+                        if (Buffer.isBuffer(data))
                             this._send_InvokeFileResponseMessage(msg, data).catch(err => send_error(msg, err));
-                         else 
-                            send_finish(msg);
+                        else
+                            this._send_InvokeFileFinishMessage(msg);
                     }).catch(err => {
                         send_error(msg, err);
                     });
@@ -311,8 +301,9 @@ export abstract class MessageRouting {
         return clean;
     }
 
-    protected _send_InvokeFinishMessage() {
-
+    protected _send_InvokeFinishMessage(msg: InvokeResponseMessage): void {
+        this._send_MessageData(InvokeFinishMessage.create(this, msg))
+            .catch(err => this._printError(`向对方发送"InvokeFinishMessage"失败`, err));
     }
 
     protected _send_InvokeFailedMessage(msg: InvokeRequestMessage, error: Error): void {
@@ -333,33 +324,28 @@ export abstract class MessageRouting {
                 const timer = setTimeout(() => { clean(); reject(new Error('请求超时')); }, this.timeout);
                 const clean = () => {
                     clearTimeout(timer);
-                    this._messageListener.cancel([MessageType.invoke_file_response, msg.sender, message.messageID, fileID] as any);
-                    this._messageListener.cancel([MessageType.invoke_file_failed, msg.sender, message.messageID, fileID] as any);
-                    this._messageListener.cancel([MessageType.invoke_file_finish, msg.sender, message.messageID, fileID] as any);
+                    this._messageListener.cancel([MessageType.invoke_file_response, message.receiver, message.messageID, fileID] as any);
+                    this._messageListener.cancel([MessageType.invoke_file_failed, message.receiver, message.messageID, fileID] as any);
+                    this._messageListener.cancel([MessageType.invoke_file_finish, message.receiver, message.messageID, fileID] as any);
                 };
 
                 this._send_MessageData(message).then(() => {
                     //监听下载到的文件
-                    this._messageListener.receiveOnce([MessageType.invoke_file_response, msg.sender, message.messageID, fileID] as any, (msg: InvokeFileResponseMessage) => {
+                    this._messageListener.receiveOnce([MessageType.invoke_file_response, message.receiver, message.messageID, fileID] as any, (msg: InvokeFileResponseMessage) => {
                         clean();
                         index !== msg.index ? reject(new Error('文件在传输过程中，顺序发生错乱')) : resolve(msg.data);
                     });
 
                     //监听下载文件失败
-                    this._messageListener.receiveOnce([MessageType.invoke_file_failed, msg.sender, message.messageID, fileID] as any, (msg: InvokeFileFailedMessage) => {
-                        clean();
-                        reject(new Error(msg.error));
+                    this._messageListener.receiveOnce([MessageType.invoke_file_failed, message.receiver, message.messageID, fileID] as any, (msg: InvokeFileFailedMessage) => {
+                        clean(); reject(new Error(msg.error));
                     });
 
                     //监听下载文件结束
-                    this._messageListener.receiveOnce([MessageType.invoke_file_finish, msg.sender, message.messageID, fileID] as any, (msg: InvokeFileFinishMessage) => {
-                        clean();
-                        resolve();
+                    this._messageListener.receiveOnce([MessageType.invoke_file_finish, message.receiver, message.messageID, fileID] as any, (msg: InvokeFileFinishMessage) => {
+                        clean(); resolve();
                     });
-                }).catch(err => {
-                    clean();
-                    reject(err);
-                });
+                }).catch(err => { clean(); reject(err); });
             }
         });
     }
@@ -369,11 +355,15 @@ export abstract class MessageRouting {
     }
 
     private _send_InvokeFileFailedMessage(msg: InvokeFileRequestMessage, error: Error): void {
+        this._messageListener.cancel([MessageType.invoke_file_request, msg.receiver, msg.messageID, msg.id] as any);   //不允许再下载该文件了
+
         this._send_MessageData(InvokeFileFailedMessage.create(this, msg, error))
             .catch(err => this._printError(`向对方发送"InvokeFileFailedMessage-> ${error.message}"失败`, err));
     }
 
     private _send_InvokeFileFinishMessage(msg: InvokeFileRequestMessage): void {
+        this._messageListener.cancel([MessageType.invoke_file_request, msg.receiver, msg.messageID, msg.id] as any);   //不允许再下载该文件了
+
         this._send_MessageData(InvokeFileFinishMessage.create(this, msg))
             .catch(err => this._printError('向对方发送"InvokeFileFinishMessage"失败', err));
     }
@@ -412,7 +402,7 @@ export abstract class MessageRouting {
         }
     }
 
-    protected _send_BroadcastOpenFinishMessage(msg: BroadcastOpenMessage): void {
+    private _send_BroadcastOpenFinishMessage(msg: BroadcastOpenMessage): void {
         this._send_MessageData(BroadcastOpenFinishMessage.create(this, msg))
             .catch(err => this._printError('向对方发送"BroadcastOpenFinishMessage"失败', err));
     }
@@ -444,7 +434,7 @@ export abstract class MessageRouting {
         }
     }
 
-    protected _send_BroadcastCloseFinishMessage(msg: BroadcastCloseMessage): void {
+    private _send_BroadcastCloseFinishMessage(msg: BroadcastCloseMessage): void {
         this._send_MessageData(BroadcastCloseFinishMessage.create(this, msg))
             .catch(err => this._printError('向对方发送"BroadcastCloseFinishMessage"失败', err));
     }

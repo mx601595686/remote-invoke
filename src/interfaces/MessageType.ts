@@ -122,6 +122,10 @@ export enum MessageType {
      * 
      * 当把invoke_file_request发送出去之后(不管消息现在是在缓冲队列中还是真的已经发出去了)，发送者就开始倒计时，时长为3分钟，超过3分钟就判定请求超时。
      * 这一过程直到收到接收者传回的invoke_file_response或invoke_file_failed或invoke_file_finish为止。    
+     * 
+     * 注意：文件的接收者应当验证     
+     * 1.文件在传输过程中，顺序(index)是否发生错乱       
+     * 2.下载到的真实文件大小应当等于发送者所描述的大小
      */
     invoke_file_request,
 
@@ -143,9 +147,6 @@ export enum MessageType {
      * ]     
      * 
      * 注意：文件的发送者应当确保不允许接收者重复下载某一文件片段。    
-     * 注意：文件的接收者应当验证     
-     * 1.文件在传输过程中，顺序(index)是否发生错乱，正确的应当是后一个index比前一个大1       
-     * 2.下载到的真实文件大小应当等于发送者所描述的大小
      */
     invoke_file_response,
 

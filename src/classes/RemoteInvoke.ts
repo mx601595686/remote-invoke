@@ -111,7 +111,7 @@ export class RemoteInvoke extends MessageRouting {
         };
         const sendInvokeFinish = (msg: InvokeResponseMessage) => {  //响应被调用者，调用结束
             if (msg.files.length > 0)
-                this._sendMessage(InvokeFinishMessage.create(this, msg));
+                this._send_InvokeFinishMessage(msg);
         }
 
         if (callback) {   //回调函数版本
