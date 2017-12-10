@@ -1,7 +1,7 @@
 import { SendingFile } from '../interfaces/InvokeSendingData';
-import { RemoteInvoke } from './RemoteInvoke';
 import { MessageType } from '../interfaces/MessageType';
 import { InvokeSendingData } from '../interfaces/InvokeSendingData';
+import { MessageRouting } from './MessageRouting';
 
 /**
  * 所有消息的基类
@@ -17,18 +17,18 @@ export abstract class MessageData {
 
     /**
      * 解析消息
-     * @param ri RemoteInvoke
+     * @param mr MessageRouting
      * @param header 已近被JSON.parse后的消息头部
      * @param body 消息body
      */
-    static parse(ri: RemoteInvoke, header: any[], body: Buffer): MessageData {
+    static parse(mr: MessageRouting, header: any[], body: Buffer): MessageData {
         throw new Error('未实现解析方法');
     }
 
     /**
      * 创建消息
      */
-    static create(ri: RemoteInvoke, ...args: any[]): MessageData {
+    static create(mr: MessageRouting, ...args: any[]): MessageData {
         throw new Error('未实现创建方法');
     }
 
@@ -72,17 +72,17 @@ export class InvokeRequestMessage extends MessageData {
         ];
     }
 
-    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+    static parse(mr: MessageRouting, header: any[], body: Buffer) {
         const irm = new InvokeRequestMessage();
         irm.sender = header[1];
         irm.receiver = header[2];
         irm.path = header[3];
 
-        if (irm.receiver !== ri.moduleName)
+        if (irm.receiver !== mr.moduleName)
             throw new Error(`收到了不属于自己的消息。sender：${irm.sender} ，receiver：${irm.receiver}`);
 
-        if (irm.path.length > ri.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${ri.pathMaxLength}个字符`);
+        if (irm.path.length > mr.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
 
         const p_body = JSON.parse(body.toString());
         irm.requestMessageID = p_body[0];
@@ -98,20 +98,20 @@ export class InvokeRequestMessage extends MessageData {
         return irm;
     }
 
-    static create(ri: RemoteInvoke, messageID: number, receiver: string, path: string, data: InvokeSendingData) {
-        if (path.length > ri.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${ri.pathMaxLength}个字符`);
+    static create(mr: MessageRouting, receiver: string, path: string, data: InvokeSendingData) {
+        if (path.length > mr.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
 
         const irm = new InvokeRequestMessage();
 
-        irm.sender = ri.moduleName;
+        irm.sender = mr.moduleName;
         irm.receiver = receiver;
         irm.path = path;
-        irm.requestMessageID = messageID;
+        irm.requestMessageID = mr._messageID++;
         irm.data = data.data;
         irm.files = data.files == null ? [] : data.files.map((item, index) =>
             Buffer.isBuffer(item.file) ?
-                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / ri.filePieceSize), name: item.name, _data: item } :
+                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / mr.filePieceSize), name: item.name, _data: item } :
                 { id: index, size: null, splitNumber: null, name: item.name, _data: item }
         );
 
@@ -136,12 +136,12 @@ export class InvokeResponseMessage extends MessageData {
         ];
     }
 
-    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+    static parse(mr: MessageRouting, header: any[], body: Buffer) {
         const irm = new InvokeResponseMessage();
         irm.sender = header[1];
         irm.receiver = header[2];
 
-        if (irm.receiver !== ri.moduleName)
+        if (irm.receiver !== mr.moduleName)
             throw new Error(`收到了不属于自己的消息。sender：${irm.sender} ，receiver：${irm.receiver}`);
 
         const p_body = JSON.parse(body.toString());
@@ -159,17 +159,17 @@ export class InvokeResponseMessage extends MessageData {
         return irm;
     }
 
-    static create(ri: RemoteInvoke, rm: InvokeRequestMessage, messageID: number, data: InvokeSendingData) {
+    static create(mr: MessageRouting, rm: InvokeRequestMessage, data: InvokeSendingData) {
         const irm = new InvokeResponseMessage();
 
-        irm.sender = ri.moduleName;
+        irm.sender = mr.moduleName;
         irm.receiver = rm.sender;
         irm.requestMessageID = rm.requestMessageID;
-        irm.responseMessageID = messageID;
+        irm.responseMessageID = mr._messageID++;
         irm.data = data.data;
         irm.files = data.files == null ? [] : data.files.map((item, index) =>
             Buffer.isBuffer(item.file) ?
-                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / ri.filePieceSize), name: item.name, _data: item } :
+                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / mr.filePieceSize), name: item.name, _data: item } :
                 { id: index, size: null, splitNumber: null, name: item.name, _data: item }
         );
 
@@ -191,12 +191,12 @@ export class InvokeFinishMessage extends MessageData {
         ];
     }
 
-    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+    static parse(mr: MessageRouting, header: any[], body: Buffer) {
         const ifm = new InvokeFinishMessage();
         ifm.sender = header[1];
         ifm.receiver = header[2];
 
-        if (ifm.receiver !== ri.moduleName)
+        if (ifm.receiver !== mr.moduleName)
             throw new Error(`收到了不属于自己的消息。sender：${ifm.sender} ，receiver：${ifm.receiver}`);
 
         ifm.responseMessageID = Number.parseInt(body.toString());
@@ -204,10 +204,10 @@ export class InvokeFinishMessage extends MessageData {
         return ifm;
     }
 
-    static create(ri: RemoteInvoke, rm: InvokeResponseMessage) {
+    static create(mr: MessageRouting, rm: InvokeResponseMessage) {
         const ifm = new InvokeFinishMessage();
 
-        ifm.sender = ri.moduleName;
+        ifm.sender = mr.moduleName;
         ifm.receiver = rm.sender;
         ifm.responseMessageID = rm.responseMessageID;
 
@@ -230,12 +230,12 @@ export class InvokeFailedMessage extends MessageData {
         ];
     }
 
-    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+    static parse(mr: MessageRouting, header: any[], body: Buffer) {
         const ifa = new InvokeFailedMessage();
         ifa.sender = header[1];
         ifa.receiver = header[2];
 
-        if (ifa.receiver !== ri.moduleName)
+        if (ifa.receiver !== mr.moduleName)
             throw new Error(`收到了不属于自己的消息。sender：${ifa.sender} ，receiver：${ifa.receiver}`);
 
         const p_body = JSON.parse(body.toString());
@@ -245,10 +245,10 @@ export class InvokeFailedMessage extends MessageData {
         return ifa;
     }
 
-    static create(ri: RemoteInvoke, rm: InvokeRequestMessage, err: Error) {
+    static create(mr: MessageRouting, rm: InvokeRequestMessage, err: Error) {
         const ifa = new InvokeFailedMessage();
 
-        ifa.sender = ri.moduleName;
+        ifa.sender = mr.moduleName;
         ifa.receiver = rm.sender;
         ifa.requestMessageID = rm.requestMessageID;
         ifa.error = err.message;
@@ -273,12 +273,12 @@ export class InvokeFileRequestMessage extends MessageData {
         ];
     }
 
-    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+    static parse(mr: MessageRouting, header: any[], body: Buffer) {
         const ifr = new InvokeFileRequestMessage();
         ifr.sender = header[1];
         ifr.receiver = header[2];
 
-        if (ifr.receiver !== ri.moduleName)
+        if (ifr.receiver !== mr.moduleName)
             throw new Error(`收到了不属于自己的消息。sender：${ifr.sender} ，receiver：${ifr.receiver}`);
 
         const p_body = JSON.parse(body.toString());
@@ -292,13 +292,13 @@ export class InvokeFileRequestMessage extends MessageData {
         return ifr;
     }
 
-    static create(ri: RemoteInvoke, rm: InvokeRequestMessage | InvokeResponseMessage, id: number, index: number) {
+    static create(mr: MessageRouting, rm: InvokeRequestMessage | InvokeResponseMessage, id: number, index: number) {
         if (!Number.isSafeInteger(index) || index < 0)
             throw new Error('文件片段索引数据类型错误');
 
         const ifr = new InvokeFileRequestMessage();
 
-        ifr.sender = ri.moduleName;
+        ifr.sender = mr.moduleName;
         ifr.receiver = rm.sender;
         ifr.messageID = rm instanceof InvokeRequestMessage ? rm.requestMessageID : rm.responseMessageID;
         ifr.id = id;
@@ -329,12 +329,12 @@ export class InvokeFileResponseMessage extends MessageData {
         ];
     }
 
-    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+    static parse(mr: MessageRouting, header: any[], body: Buffer) {
         const ifr = new InvokeFileResponseMessage();
         ifr.sender = header[1];
         ifr.receiver = header[2];
 
-        if (ifr.receiver !== ri.moduleName)
+        if (ifr.receiver !== mr.moduleName)
             throw new Error(`收到了不属于自己的消息。sender：${ifr.sender} ，receiver：${ifr.receiver}`);
 
         const b_json_length = body.readUInt32BE(0);
@@ -350,10 +350,10 @@ export class InvokeFileResponseMessage extends MessageData {
         return ifr;
     }
 
-    static create(ri: RemoteInvoke, rfm: InvokeFileRequestMessage, data: Buffer) {
+    static create(mr: MessageRouting, rfm: InvokeFileRequestMessage, data: Buffer) {
         const ifr = new InvokeFileResponseMessage();
 
-        ifr.sender = ri.moduleName;
+        ifr.sender = mr.moduleName;
         ifr.receiver = rfm.sender;
         ifr.messageID = rfm.messageID;
         ifr.id = rfm.id;
@@ -380,12 +380,12 @@ export class InvokeFileFailedMessage extends MessageData {
         ];
     }
 
-    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+    static parse(mr: MessageRouting, header: any[], body: Buffer) {
         const iff = new InvokeFileFailedMessage();
         iff.sender = header[1];
         iff.receiver = header[2];
 
-        if (iff.receiver !== ri.moduleName)
+        if (iff.receiver !== mr.moduleName)
             throw new Error(`收到了不属于自己的消息。sender：${iff.sender} ，receiver：${iff.receiver}`);
 
         const p_body = JSON.parse(body.toString());
@@ -396,10 +396,10 @@ export class InvokeFileFailedMessage extends MessageData {
         return iff;
     }
 
-    static create(ri: RemoteInvoke, rm: InvokeFileRequestMessage, err: Error) {
+    static create(mr: MessageRouting, rm: InvokeFileRequestMessage, err: Error) {
         const iff = new InvokeFileFailedMessage();
 
-        iff.sender = ri.moduleName;
+        iff.sender = mr.moduleName;
         iff.receiver = rm.sender;
         iff.messageID = rm.messageID;
         iff.id = rm.id;
@@ -424,12 +424,12 @@ export class InvokeFileFinishMessage extends MessageData {
         ];
     }
 
-    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+    static parse(mr: MessageRouting, header: any[], body: Buffer) {
         const iff = new InvokeFileFinishMessage();
         iff.sender = header[1];
         iff.receiver = header[2];
 
-        if (iff.receiver !== ri.moduleName)
+        if (iff.receiver !== mr.moduleName)
             throw new Error(`收到了不属于自己的消息。sender：${iff.sender} ，receiver：${iff.receiver}`);
 
         const p_body = JSON.parse(body.toString());
@@ -439,10 +439,10 @@ export class InvokeFileFinishMessage extends MessageData {
         return iff;
     }
 
-    static create(ri: RemoteInvoke, rm: InvokeFileRequestMessage) {
+    static create(mr: MessageRouting, rm: InvokeFileRequestMessage) {
         const iff = new InvokeFileFinishMessage();
 
-        iff.sender = ri.moduleName;
+        iff.sender = mr.moduleName;
         iff.receiver = rm.sender;
         iff.messageID = rm.messageID;
         iff.id = rm.id;
@@ -465,27 +465,27 @@ export class BroadcastMessage extends MessageData {
         ];
     }
 
-    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+    static parse(mr: MessageRouting, header: any[], body: Buffer) {
         const bm = new BroadcastMessage();
 
         bm.sender = header[1];
         bm.path = header[3];
 
-        if (bm.path.length > ri.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${ri.pathMaxLength}个字符`);
+        if (bm.path.length > mr.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
 
         bm.data = JSON.parse(body.toString());
 
         return bm;
     }
 
-    static create(ri: RemoteInvoke, path: string, data: any) {
-        if (path.length > ri.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${ri.pathMaxLength}个字符`);
+    static create(mr: MessageRouting, path: string, data: any) {
+        if (path.length > mr.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
 
         const bm = new BroadcastMessage();
 
-        bm.sender = ri.moduleName;
+        bm.sender = mr.moduleName;
         bm.path = path;
         bm.data = data;
 
@@ -507,7 +507,7 @@ export class BroadcastOpenMessage extends MessageData {
         ];
     }
 
-    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+    static parse(mr: MessageRouting, header: any[], body: Buffer) {
         const bom = new BroadcastOpenMessage();
 
         const p_body = JSON.parse(body.toString());
@@ -515,22 +515,22 @@ export class BroadcastOpenMessage extends MessageData {
         bom.broadcastSender = p_body[1];
         bom.path = p_body[2];
 
-        if (bom.broadcastSender !== ri.moduleName)
+        if (bom.broadcastSender !== mr.moduleName)
             throw new Error(`对方尝试打开不属于自己的广播。对方所期待的广播发送者:${bom.broadcastSender}`);
 
-        if (bom.path.length > ri.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${ri.pathMaxLength}个字符`);
+        if (bom.path.length > mr.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
 
         return bom;
     }
 
-    static create(ri: RemoteInvoke, messageID: number, broadcastSender: string, path: string) {
-        if (path.length > ri.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${ri.pathMaxLength}个字符`);
+    static create(mr: MessageRouting, broadcastSender: string, path: string) {
+        if (path.length > mr.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
 
         const bom = new BroadcastOpenMessage();
 
-        bom.messageID = messageID;
+        bom.messageID = mr._messageID++;
         bom.broadcastSender = broadcastSender;
         bom.path = path;
 
@@ -550,7 +550,7 @@ export class BroadcastOpenFinishMessage extends MessageData {
         ];
     }
 
-    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+    static parse(mr: MessageRouting, header: any[], body: Buffer) {
         const bof = new BroadcastOpenFinishMessage();
 
         bof.messageID = Number.parseInt(body.toString());
@@ -558,7 +558,7 @@ export class BroadcastOpenFinishMessage extends MessageData {
         return bof;
     }
 
-    static create(ri: RemoteInvoke, bom: BroadcastOpenMessage) {
+    static create(mr: MessageRouting, bom: BroadcastOpenMessage) {
         const bof = new BroadcastOpenFinishMessage();
 
         bof.messageID = bom.messageID;
@@ -581,7 +581,7 @@ export class BroadcastCloseMessage extends MessageData {
         ];
     }
 
-    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+    static parse(mr: MessageRouting, header: any[], body: Buffer) {
         const bcm = new BroadcastCloseMessage();
 
         const p_body = JSON.parse(body.toString());
@@ -589,22 +589,22 @@ export class BroadcastCloseMessage extends MessageData {
         bcm.broadcastSender = p_body[1];
         bcm.path = p_body[2];
 
-        if (bcm.broadcastSender !== ri.moduleName)
+        if (bcm.broadcastSender !== mr.moduleName)
             throw new Error(`对方尝试关闭不属于自己的广播。对方所期待的广播发送者:${bcm.broadcastSender}`);
 
-        if (bcm.path.length > ri.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${ri.pathMaxLength}个字符`);
+        if (bcm.path.length > mr.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
 
         return bcm;
     }
 
-    static create(ri: RemoteInvoke, messageID: number, broadcastSender: string, path: string) {
-        if (path.length > ri.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${ri.pathMaxLength}个字符`);
+    static create(mr: MessageRouting, broadcastSender: string, path: string) {
+        if (path.length > mr.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
 
         const bcm = new BroadcastCloseMessage();
 
-        bcm.messageID = messageID;
+        bcm.messageID = mr._messageID++;
         bcm.broadcastSender = broadcastSender;
         bcm.path = path;
 
@@ -624,7 +624,7 @@ export class BroadcastCloseFinishMessage extends MessageData {
         ];
     }
 
-    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+    static parse(mr: MessageRouting, header: any[], body: Buffer) {
         const bcf = new BroadcastCloseFinishMessage();
 
         bcf.messageID = Number.parseInt(body.toString());
@@ -632,7 +632,7 @@ export class BroadcastCloseFinishMessage extends MessageData {
         return bcf;
     }
 
-    static create(ri: RemoteInvoke, bcm: BroadcastCloseMessage) {
+    static create(mr: MessageRouting, bcm: BroadcastCloseMessage) {
         const bcf = new BroadcastCloseFinishMessage();
 
         bcf.messageID = bcm.messageID;
