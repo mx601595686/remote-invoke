@@ -15,7 +15,7 @@ export interface SendingFile {
 
     /**
      * 文件发送进度的回调函数。        
-     * 注意：如果file是回调函数，则progress永远是undefined      
+     * 注意：如果file是回调函数，则progress永远是undefined，并且只有出错的时候才会触发      
      * @param err 发送时是否发生错误
      * @param progress 文件发送的进度0 <= progress <= 1
      */

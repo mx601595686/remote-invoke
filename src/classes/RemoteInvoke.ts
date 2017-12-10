@@ -27,7 +27,7 @@ export class RemoteInvoke {
 
     private readonly _messageListener = new EventSpace();   //注册的各类消息监听器    
 
-    private _messageID: number = 0; //自增消息索引编号
+    private _messageID = 0; //自增消息索引编号
 
     /**
      * 连接端口
@@ -37,7 +37,7 @@ export class RemoteInvoke {
     /**
      * 请求响应超时，默认3分钟
      */
-    readonly timeout: number = 3 * 60 * 1000;
+    readonly timeout = 3 * 60 * 1000;
 
     /**
      * 默认文件片段大小 512kb
