@@ -98,7 +98,7 @@ export class InvokeRequestMessage extends MessageData {
         return irm;
     }
 
-    static create(mr: MessageRouting, receiver: string, path: string, data: InvokeSendingData) {
+    static create(mr: MessageRouting, messageID: number, receiver: string, path: string, data: InvokeSendingData) {
         if (path.length > mr.pathMaxLength)
             throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
 
@@ -107,7 +107,7 @@ export class InvokeRequestMessage extends MessageData {
         irm.sender = mr.moduleName;
         irm.receiver = receiver;
         irm.path = path;
-        irm.requestMessageID = mr._messageID++;
+        irm.requestMessageID = messageID;
         irm.data = data.data;
         irm.files = data.files == null ? [] : data.files.map((item, index) =>
             Buffer.isBuffer(item.file) ?
@@ -159,13 +159,13 @@ export class InvokeResponseMessage extends MessageData {
         return irm;
     }
 
-    static create(mr: MessageRouting, rm: InvokeRequestMessage, data: InvokeSendingData) {
+    static create(mr: MessageRouting, rm: InvokeRequestMessage, messageID: number, data: InvokeSendingData) {
         const irm = new InvokeResponseMessage();
 
         irm.sender = mr.moduleName;
         irm.receiver = rm.sender;
         irm.requestMessageID = rm.requestMessageID;
-        irm.responseMessageID = mr._messageID++;
+        irm.responseMessageID = messageID;
         irm.data = data.data;
         irm.files = data.files == null ? [] : data.files.map((item, index) =>
             Buffer.isBuffer(item.file) ?
@@ -524,13 +524,13 @@ export class BroadcastOpenMessage extends MessageData {
         return bom;
     }
 
-    static create(mr: MessageRouting, broadcastSender: string, path: string) {
+    static create(mr: MessageRouting, messageID: number, broadcastSender: string, path: string) {
         if (path.length > mr.pathMaxLength)
             throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
 
         const bom = new BroadcastOpenMessage();
 
-        bom.messageID = mr._messageID++;
+        bom.messageID = messageID;
         bom.broadcastSender = broadcastSender;
         bom.path = path;
 
@@ -598,13 +598,13 @@ export class BroadcastCloseMessage extends MessageData {
         return bcm;
     }
 
-    static create(mr: MessageRouting, broadcastSender: string, path: string) {
+    static create(mr: MessageRouting, messageID: number, broadcastSender: string, path: string) {
         if (path.length > mr.pathMaxLength)
             throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
 
         const bcm = new BroadcastCloseMessage();
 
-        bcm.messageID = mr._messageID++;
+        bcm.messageID = messageID;
         bcm.broadcastSender = broadcastSender;
         bcm.path = path;
 

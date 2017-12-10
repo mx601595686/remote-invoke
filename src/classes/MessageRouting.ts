@@ -29,12 +29,12 @@ export abstract class MessageRouting {
     /**
      * 注册的各类消息监听器
      */
-    readonly _messageListener = new EventSpace();
+    private readonly _messageListener = new EventSpace();
 
     /**
      * 自增消息索引编号
      */
-    _messageID = 0;
+    private _messageID = 0;
 
     /**
      * 连接端口
@@ -171,7 +171,7 @@ export abstract class MessageRouting {
                         const msg = BroadcastOpenMessage.parse(this, p_header, body);
                         this._printMessage(false, msg);
 
-                        //记录对方要监听那个路径上的广播
+                        //记录对方要监听哪个路径上的广播
                         this._messageListener.receive([MessageType._broadcast_white_list, ...msg.path.split('.')] as any, msg.path as any);
                         this._send_BroadcastOpenFinishMessage(msg);
 
@@ -299,6 +299,8 @@ export abstract class MessageRouting {
             });
 
             interval();
+        } else {
+            this._printError(`向对方发送"BroadcastOpenMessage -> 通知对方现在要接收指定路径的广播"失败。broadcastSender:${broadcastSender} path:${path}`, new Error('网络中断'));
         }
     }
 
@@ -329,6 +331,8 @@ export abstract class MessageRouting {
             });
 
             interval();
+        } else {
+            this._printError(`向对方发送"BroadcastCloseMessage -> 通知对方现在不再接收指定路径的广播"失败。broadcastSender:${broadcastSender} path:${path}`, new Error('网络中断'));
         }
     }
 
@@ -345,19 +349,6 @@ export abstract class MessageRouting {
         this._printMessage(true, msg);
 
         return this.socket.send(result[0], result[1]);
-    }
-
-    /**
-     * 打印错误消息
-     * @param desc 描述 
-     * @param err 错误信息
-     */
-    private _printError(desc: string, err: Error): void {
-        if (this.printError)
-            log.warn
-                .location.white
-                .title.yellow
-                .content.yellow('remote-invoke', desc, err);
     }
 
     /**
@@ -379,5 +370,18 @@ export abstract class MessageRouting {
                     .location.bold
                     .text.green.bold.round
                     .content('remote-invoke', this.moduleName, '收到', msg.toString());
+    }
+
+    /**
+     * 打印错误消息
+     * @param desc 描述 
+     * @param err 错误信息
+     */
+    protected _printError(desc: string, err: Error): void {
+        if (this.printError)
+            log.warn
+                .location.white
+                .title.yellow
+                .content.yellow('remote-invoke', desc, err);
     }
 }
