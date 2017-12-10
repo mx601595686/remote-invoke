@@ -27,19 +27,19 @@ import {
 export abstract class MessageRouting {
 
     /**
-     * 注册的各类消息监听器
-     */
-    private readonly _messageListener = new EventSpace();
-
-    /**
-     * 自增消息索引编号
+     * 自增消息编号索引
      */
     private _messageID = 0;
 
     /**
      * 连接端口
      */
-    readonly socket: ConnectionSocket;
+    protected readonly _socket: ConnectionSocket;
+
+    /**
+     * 注册的各类消息监听器
+     */
+    protected readonly _messageListener = new EventSpace();
 
     /**
      * 请求响应超时，默认3分钟
@@ -77,9 +77,9 @@ export abstract class MessageRouting {
      */
     constructor(socket: ConnectionSocket, moduleName: string) {
         this.moduleName = moduleName;
-        this.socket = socket;
+        this._socket = socket;
 
-        this.socket.onMessage = (header: string, body: Buffer) => {
+        this._socket.onMessage = (header: string, body: Buffer) => {
             try {
                 const p_header = JSON.parse(header);
 
@@ -210,9 +210,9 @@ export abstract class MessageRouting {
             }
         };
 
-        this.socket.onOpen = () => this._messageListener.triggerDescendants([MessageType._onOpen] as any);
+        this._socket.onOpen = () => this._messageListener.triggerDescendants([MessageType._onOpen] as any);
 
-        this.socket.onClose = () => this._messageListener.triggerDescendants([MessageType._onClose] as any);
+        this._socket.onClose = () => this._messageListener.triggerDescendants([MessageType._onClose] as any);
 
         //当端口打开之后立刻通知对方要监听哪些广播
         this._messageListener.receive([MessageType._onOpen] as any, () => {
@@ -248,21 +248,22 @@ export abstract class MessageRouting {
 
     }
 
-    protected _send_InvokeFailedMessage(msg: InvokeRequestMessage, err: Error): void {
-        this._send_MessageData(InvokeFailedMessage.create(this, msg, err))
-            .catch(err => this._printError(`向对方发送"InvokeFailedMessage -> ${err.message}"失败`, err));
+    protected _send_InvokeFailedMessage(msg: InvokeRequestMessage, error: Error): void {
+        this._send_MessageData(InvokeFailedMessage.create(this, msg, error))
+            .catch(err => this._printError(`向对方发送"InvokeFailedMessage -> ${error.message}"失败`, err));
     }
 
     protected _send_InvokeFileRequestMessage() {
 
     }
 
-    protected _send_InvokeFileResponseMessage() {
-
+    protected async _send_InvokeFileResponseMessage(msg: InvokeFileRequestMessage, data: Buffer): Promise<void> {
+        await this._send_MessageData(InvokeFileResponseMessage.create(this, msg, data));
     }
 
-    protected _send_InvokeFileFailedMessage() {
-
+    protected _send_InvokeFileFailedMessage(msg: InvokeFileRequestMessage, error: Error): void {
+        this._send_MessageData(InvokeFileFailedMessage.create(this, msg, error))
+            .catch(err => this._printError(`向对方发送"InvokeFileFailedMessage-> ${error.message}"失败`, err));
     }
 
     protected _send_InvokeFileFinishMessage(msg: InvokeFileRequestMessage): void {
@@ -278,8 +279,8 @@ export abstract class MessageRouting {
     }
 
     protected _send_BroadcastOpenMessage(broadcastSender: string, path: string): void {
-        if (this.socket.connected) {    //加这个判断是为了确保"MessageType._onClose"能够触发
-            const result = BroadcastOpenMessage.create(this, broadcastSender, path);
+        if (this._socket.connected) {    //加这个判断是为了确保"MessageType._onClose"能够触发
+            const result = BroadcastOpenMessage.create(this, this._messageID++, broadcastSender, path);
 
             const interval = () => {
                 this._send_MessageData(result)
@@ -310,8 +311,8 @@ export abstract class MessageRouting {
     }
 
     protected _send_BroadcastCloseMessage(broadcastSender: string, path: string): void {
-        if (this.socket.connected) {    //加这个判断是为了确保"MessageType._onClose"能够触发
-            const result = BroadcastCloseMessage.create(this, broadcastSender, path);
+        if (this._socket.connected) {    //加这个判断是为了确保"MessageType._onClose"能够触发
+            const result = BroadcastCloseMessage.create(this, this._messageID++, broadcastSender, path);
 
             const interval = () => {
                 this._send_MessageData(result)
@@ -348,7 +349,7 @@ export abstract class MessageRouting {
         const result = msg.pack();
         this._printMessage(true, msg);
 
-        return this.socket.send(result[0], result[1]);
+        return this._socket.send(result[0], result[1]);
     }
 
     /**

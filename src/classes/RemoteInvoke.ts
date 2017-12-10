@@ -33,10 +33,10 @@ export class RemoteInvoke extends MessageRouting {
     constructor(socket: ConnectionSocket, moduleName: string) {
         super(socket, moduleName);
 
-        if (this.socket.ri != null)
+        if (this._socket.ri != null)
             throw new Error('传入的ConnectionSocket已在其他地方被使用');
 
-        this.socket.ri = this;
+        this._socket.ri = this;
     }
 
     /**
@@ -380,16 +380,14 @@ export class RemoteInvoke extends MessageRouting {
                 const send_error = (msg: InvokeFileRequestMessage, err: Error) => {
                     sendingData.onProgress && sendingData.onProgress(err, undefined as any);
 
-                    this._sendMessage(InvokeFileFailedMessage.create(this, msg, err))
-                        .catch(err => this._printError('向对方发送"请求文件片段失败响应"失败', err));
+                    this._send_InvokeFileFailedMessage(msg, err);
 
                     //不允许再下载该文件了
                     this._messageListener.cancel([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any);
                 }
 
                 const send_finish = (msg: InvokeFileRequestMessage) => {
-                    this._sendMessage(InvokeFileFinishMessage.create(this, msg))
-                        .catch(err => this._printError('向对方发送"请求文件片段结束响应"失败', err));
+                    this._send_InvokeFileFinishMessage(msg);
 
                     //不允许再下载该文件了
                     this._messageListener.cancel([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any);
@@ -410,17 +408,15 @@ export class RemoteInvoke extends MessageRouting {
                         if (index < (item.splitNumber as number)) {
                             sendingData.onProgress && sendingData.onProgress(undefined, (index + 1) / (item.splitNumber as number));
 
-                            const result = InvokeFileResponseMessage
-                                .create(this, msg, sendingData.file.slice(index * this.filePieceSize, (index + 1) * this.filePieceSize));
-
-                            this._sendMessage(result).catch(err => send_error(msg, err));
+                            this._send_InvokeFileResponseMessage(msg, sendingData.file.slice(index * this.filePieceSize, (index + 1) * this.filePieceSize))
+                                .catch(err => send_error(msg, err));
                         } else {
                             send_finish(msg);
                         }
                     } else {
                         sendingData.file(index).then(data => {
                             if (Buffer.isBuffer(data)) {
-                                this._sendMessage(InvokeFileResponseMessage.create(this, msg, data)).catch(err => send_error(msg, err));
+                                this._send_InvokeFileResponseMessage(msg, data).catch(err => send_error(msg, err));
                             } else {
                                 send_finish(msg);
                             }
