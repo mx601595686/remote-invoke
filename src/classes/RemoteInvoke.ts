@@ -1,7 +1,7 @@
 import { MessageType } from '../interfaces/MessageType';
 import { ConnectionSocket } from "../interfaces/ConnectionSocket";
 import { InvokeReceivingData, ReceivingFile } from '../interfaces/InvokeReceivingData';
-import { InvokeSendingData, SendingFile } from '../interfaces/InvokeSendingData';
+import { InvokeSendingData } from '../interfaces/InvokeSendingData';
 import { InvokeRequestMessage, InvokeResponseMessage } from './MessageData';
 import { MessageRouting } from './MessageRouting';
 
@@ -94,11 +94,12 @@ export class RemoteInvoke extends MessageRouting {
                         result.push({ name: item.name, data: await item.getFile() });
                     }
 
-                    return { data: data.data, files: result };
+                    return { data: r_data.data, files: result };
                 } catch (error) {
                     throw error;
                 } finally {
                     clean();
+                    this._send_InvokeFinishMessage(msg);
                 }
             })();
         }
@@ -156,14 +157,16 @@ export class RemoteInvoke extends MessageRouting {
 
         const files = msg.files.map(item => {
             let start: boolean = false;             //是否已经开始获取了，主要是用于防止重复下载
-            let index = 0;                          //现在接收到第几个文件片段了
+            let index = -1;                         //现在接收到第几个文件片段了
             let downloadedSize = 0;                 //已下载大小
 
-            const downloadNext = () => {            //下载下一个文件片段
-                if (item.splitNumber && index >= item.splitNumber) {  //判断是否下载完了
+            const downloadNext = () => {            //下载下一个文件片段//判断是否下载完了
+                index++;
+
+                if (item.splitNumber && index >= item.splitNumber) {
                     return Promise.resolve();
                 } else {
-                    return this._send_InvokeFileRequestMessage(msg, item.id, index++).then(data => {
+                    return this._send_InvokeFileRequestMessage(msg, item.id, index).then(data => {
                         if (data) {
                             downloadedSize += data.length;
 
@@ -189,7 +192,7 @@ export class RemoteInvoke extends MessageRouting {
                         if (item.splitNumber != null && startIndex >= item.splitNumber) { //如果传入的起始位置已经到达了末尾
                             callback(undefined, true, startIndex, Buffer.alloc(0));
                         } else {
-                            index = startIndex;
+                            index = startIndex - 1;
 
                             while (true) {
                                 try {

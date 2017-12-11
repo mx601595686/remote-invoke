@@ -382,16 +382,22 @@ describe('测试remote-invoke', function () {
                             let idx = 0;  //判断执行到第几次了
                             data.files[0].onData(async (err, isEnd, index, data) => {
                                 expect(err).to.be(undefined);
-                                if (idx++ === 0) {
+                                idx++;
+
+                                if (idx === 1) {
                                     expect(isEnd).to.be(false);
                                     expect(index).to.be(0);
                                     expect(testBuffer.slice(0, 512 * 1024).equals(data)).to.be.ok();
-                                } else {
-                                    expect(isEnd).to.be(true);
+                                } else if (idx === 2) {
+                                    expect(isEnd).to.be(false);
                                     expect(index).to.be(1);
                                     expect(testBuffer.slice(512 * 1024).equals(data)).to.be.ok();
+                                } else {
+                                    expect(isEnd).to.be(true);
+                                    expect(index).to.be(2);
+                                    expect(data.length).to.be(0);
 
-                                    expect(idx).to.be(2);
+                                    expect(idx).to.be(3);
                                     resolve();
                                     done();
                                 }
@@ -443,13 +449,20 @@ describe('测试remote-invoke', function () {
                         expect(err).to.be(undefined);
 
                         data.files[0].onData(async (err, isEnd, index, data) => {
-                            expect(err).to.be(undefined);
-                            expect(isEnd).to.be(true);
-                            expect(index).to.be(1);
-                            expect(testBuffer.slice(512 * 1024).equals(data)).to.be.ok();
+                            if (index === 1) {
+                                expect(err).to.be(undefined);
+                                expect(isEnd).to.be(false);
+                                expect(index).to.be(1);
+                                expect(testBuffer.slice(512 * 1024).equals(data)).to.be.ok();
+                            } else {
+                                expect(err).to.be(undefined);
+                                expect(isEnd).to.be(true);
+                                expect(index).to.be(2);
+                                expect(data.length).to.be(0)
 
-                            resolve();
-                            done();
+                                resolve();
+                                done();
+                            }
                         }, 1);
                     });
                 });
