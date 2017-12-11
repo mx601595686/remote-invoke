@@ -2,33 +2,8 @@
 import { ConnectionSocket } from "../interfaces/ConnectionSocket";
 import { InvokeReceivingData } from '../interfaces/InvokeReceivingData';
 import { InvokeSendingData } from '../interfaces/InvokeSendingData';
-export declare class RemoteInvoke {
-    private readonly _messageListener;
-    private _messageID;
-    /**
-     * 连接端口
-     */
-    readonly socket: ConnectionSocket;
-    /**
-     * 请求响应超时，默认3分钟
-     */
-    readonly timeout: number;
-    /**
-     * 默认文件片段大小 512kb
-     */
-    readonly filePieceSize: number;
-    /**
-     * 当前模块名称
-     */
-    readonly moduleName: string;
-    /**
-     * 是否打印收到和发送的消息（用于调试）。默认false
-     */
-    printMessage: boolean;
-    /**
-     * 是否打印系统错误，默认true
-     */
-    printError: boolean;
+import { MessageRouting } from './MessageRouting';
+export declare class RemoteInvoke extends MessageRouting {
     /**
      * @param socket 连接端口
      * @param moduleName 当前模块的名称
@@ -49,12 +24,12 @@ export declare class RemoteInvoke {
      */
     cancelExport(path: string): void;
     /**
-     * 调用远端模块导出的方法。直接返回数据与文件
+     * 调用远端模块导出的方法。返回数据和所有下载到的文件
      * @param receiver 远端模块的名称
      * @param path 方法的路径
      * @param data 要传递的数据
      */
-    invoke(receiver: string, path: string, data: InvokeSendingData): Promise<{
+    invoke(receiver: string, path: string, data?: InvokeSendingData): Promise<{
         data: any;
         files: {
             name: string;
@@ -66,9 +41,9 @@ export declare class RemoteInvoke {
      * @param receiver 远端模块的名称
      * @param path 方法的路径
      * @param data 要传递的数据
-     * @param callback 接收响应数据的回调。注意：一旦回调执行完成就不能再下载文件了。
+     * @param callback 接收响应的回调。注意：一旦回调执行完成就不能再下载文件了。
      */
-    invoke(receiver: string, path: string, data: InvokeSendingData, callback: (err: Error | undefined, data: InvokeReceivingData) => Promise<void>): void;
+    invoke(receiver: string, path: string, data: InvokeSendingData | undefined, callback: (err: Error | undefined, data: InvokeReceivingData) => Promise<void>): void;
     /**
      * 注册广播监听器
      * @param sender 发送者
@@ -88,44 +63,9 @@ export declare class RemoteInvoke {
      * @param path 广播的路径
      * @param data 要发送的数据
      */
-    broadcast(path: string, data?: any): Promise<void>;
-    /**
-     * 便于使用socket发送消息
-     */
-    private _sendMessage(msg);
-    /**
-     * 打印错误消息
-     * @param desc 描述
-     * @param err 错误信息
-     */
-    private _printError(desc, err);
-    /**
-     * 打印收到或发送的消息
-     * @param sendOrReceive 如果是发送则为true，如果是接收则为false
-     * @param desc 描述
-     * @param data 要打印的数据
-     */
-    private _printMessage(sendOrReceive, msg);
+    broadcast(path: string, data?: any): void;
     /**
      * 准备好下载回调。返回InvokeReceivingData与清理资源回调
      */
     private _prepare_InvokeReceivingData(msg);
-    /**
-     * 准备发送文件，返回清理资源回调。如果超时会自动清理资源
-     * @param msg 要发送的数据
-     * @param onTimeout 没有文件请求超时
-     */
-    private _prepare_InvokeSendingData(msg, onTimeout?);
-    /**
-      * 发送BroadcastOpenMessage
-      * @param broadcastSender 广播的发送者
-      * @param path 广播路径
-      */
-    private _send_BroadcastOpenMessage(broadcastSender, path);
-    /**
-     * 发送BroadcastCloseMessage
-     * @param broadcastSender 广播的发送者
-     * @param path 广播路径
-     */
-    private _send_BroadcastCloseMessage(broadcastSender, path);
 }

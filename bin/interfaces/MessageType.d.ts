@@ -37,6 +37,8 @@ export declare enum MessageType {
      *
      * 当把invoke_request发送出去之后(不管消息现在是在缓冲队列中还是真的已经发出去了)，调用者就开始倒计时，时长为3分钟，超过3分钟就判定请求超时。
      * 如果中途收到了被调用者传回的invoke_file_request请求，那么就重置倒计时，这一过程直到收到被调用者传回的invoke_response或invoke_failed为止。
+     *
+     * 注意：如果调用者调用的方法不存在，被调用者要向调用者报错
      */
     invoke_request = 0,
     /**
@@ -114,6 +116,10 @@ export declare enum MessageType {
      *
      * 当把invoke_file_request发送出去之后(不管消息现在是在缓冲队列中还是真的已经发出去了)，发送者就开始倒计时，时长为3分钟，超过3分钟就判定请求超时。
      * 这一过程直到收到接收者传回的invoke_file_response或invoke_file_failed或invoke_file_finish为止。
+     *
+     * 注意：文件的接收者应当验证
+     * 1.文件在传输过程中，顺序(index)是否发生错乱
+     * 2.下载到的真实文件大小应当等于发送者所描述的大小
      */
     invoke_file_request = 4,
     /**
@@ -134,9 +140,6 @@ export declare enum MessageType {
      * ]
      *
      * 注意：文件的发送者应当确保不允许接收者重复下载某一文件片段。
-     * 注意：文件的接收者应当验证
-     * 1.文件在传输过程中，顺序(index)是否发生错乱，正确的应当是后一个index比前一个大1
-     * 2.下载到的真实文件大小应当等于发送者所描述的大小
      */
     invoke_file_response = 5,
     /**
@@ -214,6 +217,8 @@ export declare enum MessageType {
      * 在下面两种情况下才需要发送该消息
      * 1. 用户在新的路径上注册了广播
      * 2. 当网络连接断开，重新连接之后，需要将之前注册过的广播路径再重新通知对方一遍。
+     *
+     * 注意：如果对方在3分钟之内没有回应则重新再发一次，直到收到对方回应或网络断开为止。
      */
     broadcast_open = 9,
     /**
@@ -248,6 +253,8 @@ export declare enum MessageType {
      * 在下面两种情况下才需要发送该消息
      * 1. 用户在某条路径上已经没有注册的有广播监听器了
      * 2. 当用户收到了自己没有注册过的广播的时候通知对方。
+     *
+     * 注意：如果对方在3分钟之内没有回应则重新再发一次，直到收到对方回应或网络断开为止。
      */
     broadcast_close = 11,
     /**
