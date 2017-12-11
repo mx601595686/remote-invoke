@@ -498,13 +498,13 @@ export abstract class MessageRouting {
                     .location
                     .location.bold
                     .text.cyan.bold.round
-                    .content.yellow('remote-invoke', this.moduleName, '发送', msg.toString());
+                    .content.cyan('remote-invoke', this.moduleName, '发送', msg.toString());
             else
                 log
                     .location
                     .location.bold
                     .text.green.bold.round
-                    .content.yellow('remote-invoke', this.moduleName, '收到', msg.toString());
+                    .content.green('remote-invoke', this.moduleName, '收到', msg.toString());
     }
 
     /**
