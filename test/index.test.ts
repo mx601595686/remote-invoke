@@ -29,8 +29,8 @@ describe('测试remote-invoke', function () {
                 s_rv = new RemoteInvoke(new BinaryWS_socket(s_socket), 'server');
                 c_rv = new RemoteInvoke(new BinaryWS_socket(c_socket), 'client');
 
-                //s_rv.printMessage = true;
-                //c_rv.printMessage = true;
+                s_rv.printMessage = true;
+                c_rv.printMessage = true;
 
                 (s_rv.timeout as any) = 5 * 1000; //修改为5秒过期超时
                 (c_rv.timeout as any) = 5 * 1000;
@@ -611,49 +611,103 @@ describe('测试remote-invoke', function () {
         });
     });
 
-    describe('测试 broadcast', function () {
+    describe.only('测试 broadcast', function () {
 
-        it('测试注册广播', function () {
-            /**
-             * 注意查看broadcast_open
-             */
-        })
+        it('测试向对方发送广播', function (done) {
+            //注意查看broadcast_open与broadcast_close消息
+            this.timeout(20 * 1000);
 
-        it('测试取消注册广播', function () {
-            /**
-             * 注意查看broadcast_close
-             */
-        })
+            const result1: any[] = [];
+            const result2: any[] = [];
 
-        it('测试发送对方没有注册过的广播', function () {
-            /**
-             * 注意查看broadcast_close
-             */
-        })
+            c_rv.receive('server', 'test', (data) => {
+                result1.push(data);
+            });
 
-        it('测试向对方发送广播广播', function () {
-            /**
-             * 注意查看broadcast_close
-             */
-        })
+            c_rv.receive('server', 'test.a', (data) => {
+                result2.push(data);
+            });
 
+            setTimeout(() => {
+                s_rv.broadcast('test', 1);
+                s_rv.broadcast('test.a', 2);
+                s_rv.broadcast('test.a.b', 3);
 
-        it('测试发送带有层级关系的广播', function () {
-            /**
-             * 注意查看broadcast_close
-             */
-        })
+                s_rv.broadcast('test2.a.b', 4);
 
-        it('测试网络连接断开后，清空对方注册过的广播', function () {
-            /**
-             * 注意查看broadcast_close
-             */
-        })
+                setTimeout(() => {
+                    expect(result1).to.be.eql([1, 2, 3]);
+                    expect(result2).to.be.eql([2, 3]);
 
-        it('测试网络重连后，向方发送注册过的广播', function () {
-            /**
-             * 注意查看broadcast_close
-             */
+                    c_rv.cancelReceive('server', 'test');
+                    c_rv.cancelReceive('server', 'test.a');
+
+                    setTimeout(() => {
+                        const s_es = (<any>s_rv)._messageListener as EventSpace;
+                        const c_es = (<any>c_rv)._messageListener as EventSpace;
+
+                        expect(s_es.hasDescendants([MessageType.broadcast] as any)).to.not.be.ok();
+                        expect(s_es.hasDescendants([MessageType.broadcast_close] as any)).to.not.be.ok();
+                        expect(s_es.hasDescendants([MessageType.broadcast_close_finish] as any)).to.not.be.ok();
+                        expect(s_es.hasDescendants([MessageType.broadcast_open] as any)).to.not.be.ok();
+                        expect(s_es.hasDescendants([MessageType.broadcast_open_finish] as any)).to.not.be.ok();
+                        expect(s_es.hasDescendants([MessageType._broadcast_white_list] as any)).to.not.be.ok();
+
+                        expect(c_es.hasDescendants([MessageType.broadcast] as any)).to.not.be.ok();
+                        expect(c_es.hasDescendants([MessageType.broadcast_close] as any)).to.not.be.ok();
+                        expect(c_es.hasDescendants([MessageType.broadcast_close_finish] as any)).to.not.be.ok();
+                        expect(c_es.hasDescendants([MessageType.broadcast_open] as any)).to.not.be.ok();
+                        expect(c_es.hasDescendants([MessageType.broadcast_open_finish] as any)).to.not.be.ok();
+                        expect(c_es.hasDescendants([MessageType._broadcast_white_list] as any)).to.not.be.ok();
+
+                        done();
+                    }, 1000);
+                }, 1000);
+            }, 1000);
+        });
+
+        it('测试发送对方没有注册过的广播', function (done) {
+            //注意观察：应当一条发送或反馈的消息都没有
+            c_rv.broadcast('test', '123');
+            setTimeout(done, 1000);
+        });
+
+        it('测试网络连接断开后，清空对方注册过的广播', function (done) {
+            //注意观察发送的消息
+
+            c_rv.receive('server', 'test', (data) => { });
+            c_rv.receive('server', 'test.a', (data) => { });
+
+            setTimeout(() => {
+                (<any>s_rv)._socket.onClose();  //模拟网络断开
+
+                const s_es = (<any>s_rv)._messageListener as EventSpace;
+                expect(s_es.hasDescendants([MessageType._broadcast_white_list] as any)).to.not.be.ok();
+
+                done();
+            }, 1000);
+        });
+
+        it('测试网络重连后，向方发送注册过的广播', function (done) {
+            //注意观察发送的消息
+
+            this.timeout(20 * 1000);
+
+            c_rv.receive('server', 'test', (data) => { });
+            c_rv.receive('server', 'test.a', (data) => { });
+
+            setTimeout(() => {
+                (<any>s_rv)._socket.onClose();  //模拟网络断开
+                (<any>c_rv)._socket.onOpen();   //模拟网络重连
+
+                const s_es = (<any>s_rv)._messageListener as EventSpace;
+                expect(s_es.hasDescendants([MessageType._broadcast_white_list] as any)).to.not.be.ok();
+
+                setTimeout(() => {
+                    expect(s_es.hasDescendants([MessageType._broadcast_white_list] as any)).to.be.ok();
+                    done();
+                }, 1000);
+            }, 1000);
         })
     });
 });

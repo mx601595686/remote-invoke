@@ -173,7 +173,7 @@ export abstract class MessageRouting {
                         this._printMessage(false, msg);
 
                         //记录对方要监听哪个路径上的广播
-                        this._messageListener.receive([MessageType._broadcast_white_list, ...msg.path.split('.')] as any, msg.path as any);
+                        this._messageListener.receive([MessageType._broadcast_white_list, ...msg.path.split('.')] as any, true as any);
                         this._send_BroadcastOpenFinishMessage(msg);
 
                         break;
@@ -219,9 +219,13 @@ export abstract class MessageRouting {
         this._messageListener.receive([MessageType._onOpen] as any, () => {
             this._messageListener._eventLevel.getChildLevel([MessageType.broadcast] as any, true)
                 .children.forEach((level, broadcastSender) => {
-                    const forEachLevel = (level: EventLevel) => {
+                    const eventName: string[] = [];
+
+                    const forEachLevel = (level: EventLevel, levelName: string) => {
+                        eventName.push(levelName);
+
                         if (level.receivers.size > 0) {
-                            this._send_BroadcastOpenMessage(broadcastSender, level.receivers.values().next().value as any);
+                            this._send_BroadcastOpenMessage(broadcastSender, eventName.join('.'));
                         }
 
                         level.children.forEach(forEachLevel);
