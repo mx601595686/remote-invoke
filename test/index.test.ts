@@ -1,6 +1,6 @@
 import * as http from 'http';
 import expect = require('expect.js');
-import { Server, ServerSocket, ReadyState } from 'binary-ws';
+import { Server, ServerSocket } from 'binary-ws';
 import { EventSpace } from 'eventspace/bin/classes/EventSpace';
 
 import { RemoteInvoke, MessageType } from '../src';
@@ -611,7 +611,7 @@ describe('测试remote-invoke', function () {
         });
     });
 
-    describe.only('测试 broadcast', function () {
+    describe('测试 broadcast', function () {
 
         it('测试向对方发送广播', function (done) {
             //注意查看broadcast_open与broadcast_close消息
@@ -708,6 +708,6 @@ describe('测试remote-invoke', function () {
                     done();
                 }, 1000);
             }, 1000);
-        })
+        });
     });
 });

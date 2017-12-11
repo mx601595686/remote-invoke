@@ -21,7 +21,8 @@ export interface ConnectionSocket {
     onOpen: () => void;
 
     /**
-     * 由remote-invoke注册的网络连接断开回调
+     * 由remote-invoke注册的网络连接断开回调。    
+     * 提示：连接断开后并不会立刻终止调用或响应，如果能在过期时间内重新连接上，之前的调用操作可能还可以继续。
      */
     onClose: () => void;
 
