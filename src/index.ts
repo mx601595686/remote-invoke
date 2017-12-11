@@ -1,4 +1,3 @@
-export * from './classes/MessageData';
 export * from './classes/RemoteInvoke';
 
 export * from './interfaces/ConnectionSocket';
