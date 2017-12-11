@@ -154,7 +154,7 @@ export class RemoteInvoke extends MessageRouting {
      */
     private _prepare_InvokeReceivingData(msg: InvokeRequestMessage | InvokeResponseMessage) {
         const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
-        let cleaned = false;   //是否下载已清理
+        let cleaned = false;   //是否下载已被清理
 
         const files = msg.files.map(item => {
             let start: boolean = false;             //是否已经开始获取了，主要是用于防止重复下载
@@ -235,7 +235,7 @@ export class RemoteInvoke extends MessageRouting {
             data: { data: msg.data, files },
             clean: () => { //清理正在下载的
                 cleaned = true;
-                this._messageListener.triggerDescendants([MessageType.invoke_file_failed, msg.receiver, messageID] as any, { error: '下载终止' });
+                this._messageListener.triggerDescendants([MessageType.invoke_file_failed, msg.sender, messageID] as any, { error: '下载终止' });
             }
         };
     }
