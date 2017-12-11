@@ -160,11 +160,11 @@ export abstract class MessageRouting {
 
                         const eventName = [msg.type, msg.sender, ...msg.path.split('.')] as any;
 
-                        if (this._messageListener.hasAncestors(eventName)) {
+                        if (this._messageListener.hasAncestors(eventName))
                             this._messageListener.triggerAncestors(eventName, msg.data, true, true);
-                        } else {  //如果没有注册过这个广播的监听器，就通知对方不要再发送了
+                        else   //如果没有注册过这个广播的监听器，就通知对方不要再发送了
                             this._send_BroadcastCloseMessage(msg.sender, msg.path);
-                        }
+
 
                         break;
                     }
@@ -348,7 +348,7 @@ export abstract class MessageRouting {
     }
 
     /**
-     * 下载一个文件片段，如果返回void则表示下载完成了，超时或下载失败会抛出异常。
+     * 发送请求，下载一个文件片段，返回下载到的文件片段Buffer。如果返回void则表示下载完成了，超时或下载失败会抛出异常。
      */
     protected _send_InvokeFileRequestMessage(msg: InvokeRequestMessage | InvokeResponseMessage, fileID: number, index: number): Promise<Buffer | void> {
         return new Promise((resolve, reject) => {
@@ -365,17 +365,23 @@ export abstract class MessageRouting {
                 //监听下载到的文件
                 this._messageListener.receiveOnce([MessageType.invoke_file_response, message.receiver, message.messageID, fileID] as any, (msg: InvokeFileResponseMessage) => {
                     clean();
-                    index !== msg.index ? reject(new Error('文件在传输过程中，顺序发生错乱')) : resolve(msg.data);
+
+                    if (index !== msg.index)
+                        reject(new Error('文件在传输过程中，顺序发生错乱'));
+                    else
+                        resolve(msg.data);
                 });
 
                 //监听下载文件失败
                 this._messageListener.receiveOnce([MessageType.invoke_file_failed, message.receiver, message.messageID, fileID] as any, (msg: InvokeFileFailedMessage) => {
-                    clean(); reject(new Error(msg.error));
+                    clean();
+                    reject(new Error(msg.error));
                 });
 
                 //监听下载文件结束
                 this._messageListener.receiveOnce([MessageType.invoke_file_finish, message.receiver, message.messageID, fileID] as any, (msg: InvokeFileFinishMessage) => {
-                    clean(); resolve();
+                    clean();
+                    resolve();
                 });
             }).catch(err => { clean(); reject(err); });
         });
@@ -399,11 +405,11 @@ export abstract class MessageRouting {
             .catch(err => this._printError('向对方发送"InvokeFileFinishMessage"失败', err));
     }
 
-    protected async _send_BroadcastMessage(path: string, data: any): Promise<void> {
+    protected _send_BroadcastMessage(path: string, data: any): void {
         //判断对方是否注册的有关于这条广播的监听器
-        if (this._messageListener.hasAncestors([MessageType._broadcast_white_list, ...path.split('.')] as any)) {
-            await this._send_MessageData(BroadcastMessage.create(this, path, data));
-        }
+        if (this._messageListener.hasAncestors([MessageType._broadcast_white_list, ...path.split('.')] as any))
+            this._send_MessageData(BroadcastMessage.create(this, path, data))
+                .catch(err => this._printError(`对外广播"BroadcastMessage"失败。path:${path}`, err));
     }
 
     protected _send_BroadcastOpenMessage(broadcastSender: string, path: string): void {
@@ -492,13 +498,13 @@ export abstract class MessageRouting {
                     .location
                     .location.bold
                     .text.cyan.bold.round
-                    .content('remote-invoke', this.moduleName, '发送', msg.toString());
+                    .content.yellow('remote-invoke', this.moduleName, '发送', msg.toString());
             else
                 log
                     .location
                     .location.bold
                     .text.green.bold.round
-                    .content('remote-invoke', this.moduleName, '收到', msg.toString());
+                    .content.yellow('remote-invoke', this.moduleName, '收到', msg.toString());
     }
 
     /**

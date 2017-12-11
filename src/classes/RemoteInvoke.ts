@@ -12,10 +12,10 @@ export class RemoteInvoke extends MessageRouting {
      * @param moduleName 当前模块的名称
      */
     constructor(socket: ConnectionSocket, moduleName: string) {
-        super(socket, moduleName);
-
-        if (this._socket.ri != null)
+        if (socket.ri != null)
             throw new Error('传入的ConnectionSocket已在其他地方被使用');
+
+        super(socket, moduleName);
 
         this._socket.ri = this;
     }
@@ -55,18 +55,18 @@ export class RemoteInvoke extends MessageRouting {
     }
 
     /**
-     * 调用远端模块导出的方法。直接返回数据与文件
+     * 调用远端模块导出的方法。返回数据和所有下载到的文件
      * @param receiver 远端模块的名称
      * @param path 方法的路径
      * @param data 要传递的数据
      */
-    invoke(receiver: string, path: string, data?: InvokeSendingData | undefined): Promise<{ data: any, files: { name: string, data: Buffer }[] }>
+    invoke(receiver: string, path: string, data?: InvokeSendingData): Promise<{ data: any, files: { name: string, data: Buffer }[] }>
     /**
      * 调用远端模块导出的方法。
      * @param receiver 远端模块的名称
      * @param path 方法的路径
      * @param data 要传递的数据
-     * @param callback 接收响应数据的回调。注意：一旦回调执行完成就不能再下载文件了。
+     * @param callback 接收响应的回调。注意：一旦回调执行完成就不能再下载文件了。
      */
     invoke(receiver: string, path: string, data: InvokeSendingData | undefined, callback: (err: Error | undefined, data: InvokeReceivingData) => Promise<void>): void
     invoke(receiver: string, path: string, data: InvokeSendingData = { data: null }, callback?: (err: Error | undefined, data: InvokeReceivingData) => Promise<void>): any {
@@ -145,8 +145,8 @@ export class RemoteInvoke extends MessageRouting {
      * @param path 广播的路径
      * @param data 要发送的数据
      */
-    broadcast(path: string, data: any = null): Promise<void> {
-        return this._send_BroadcastMessage(path, data);
+    broadcast(path: string, data: any = null) {
+        this._send_BroadcastMessage(path, data);
     }
 
     /**
@@ -154,25 +154,25 @@ export class RemoteInvoke extends MessageRouting {
      */
     private _prepare_InvokeReceivingData(msg: InvokeRequestMessage | InvokeResponseMessage) {
         const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
+        let cleaned = false;   //是否下载已清理
 
         const files = msg.files.map(item => {
             let start: boolean = false;             //是否已经开始获取了，主要是用于防止重复下载
             let index = -1;                         //现在接收到第几个文件片段了
             let downloadedSize = 0;                 //已下载大小
 
-            const downloadNext = () => {            //下载下一个文件片段//判断是否下载完了
+            const downloadNext = () => {            //下载下一个文件片段
+                if (cleaned)
+                    return Promise.reject(new Error('下载终止'));
+
                 index++;
 
-                if (item.splitNumber && index >= item.splitNumber) {
+                if (item.splitNumber != null && index >= item.splitNumber) {    //判断是否下载完了
                     return Promise.resolve();
                 } else {
                     return this._send_InvokeFileRequestMessage(msg, item.id, index).then(data => {
-                        if (data) {
-                            downloadedSize += data.length;
-
-                            if (item.size != null && downloadedSize > item.size)
-                                throw new Error('下载到的文件大小超出了发送者所描述的大小');
-                        }
+                        if (data && item.size != null && (downloadedSize += data.length) > item.size)
+                            throw new Error('下载到的文件大小超出了发送者所描述的大小');
 
                         return data;
                     });
@@ -188,27 +188,22 @@ export class RemoteInvoke extends MessageRouting {
                         (<any>callback)(new Error('不可重复下载文件'));
                     } else {
                         start = true;
+                        index = startIndex - 1;
 
-                        if (item.splitNumber != null && startIndex >= item.splitNumber) { //如果传入的起始位置已经到达了末尾
-                            callback(undefined, true, startIndex, Buffer.alloc(0));
-                        } else {
-                            index = startIndex - 1;
+                        while (true) {
+                            try {
+                                var data = await downloadNext();
+                            } catch (error) {
+                                (<any>callback)(error);
+                                break;
+                            }
 
-                            while (true) {
-                                try {
-                                    var data = await downloadNext();
-                                } catch (error) {
-                                    (<any>callback)(error);
-                                    break;
-                                }
-
-                                if (data) {
-                                    const isNext = await callback(undefined, false, index, data);
-                                    if (isNext === true) break;
-                                } else {
-                                    callback(undefined, true, index, Buffer.alloc(0));
-                                    break;
-                                }
+                            if (data) {
+                                const isNext = await callback(undefined, false, index, data);
+                                if (isNext === true) break;
+                            } else {
+                                callback(undefined, true, index, Buffer.alloc(0));
+                                break;
                             }
                         }
                     }
@@ -239,7 +234,8 @@ export class RemoteInvoke extends MessageRouting {
         return {
             data: { data: msg.data, files },
             clean: () => { //清理正在下载的
-                this._messageListener.triggerDescendants([MessageType.invoke_file_failed, msg.sender, messageID] as any, { error: '下载终止' });
+                cleaned = true;
+                this._messageListener.triggerDescendants([MessageType.invoke_file_failed, msg.receiver, messageID] as any, { error: '下载终止' });
             }
         };
     }

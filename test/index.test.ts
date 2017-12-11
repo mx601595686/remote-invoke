@@ -234,6 +234,24 @@ describe('测试remote-invoke', function () {
             }).catch(err => done(err));
         });
 
+        it('测试invoke执行完后就不可以再下载文件了', function (done) {
+            this.timeout(20 * 1000);
+
+            s_rv.export('test', async (data) => {
+                return { data: null, files: [{ name: '1', file: Buffer.alloc(512 * 1024 * 4) }] };
+            });
+
+            c_rv.invoke('server', 'test', undefined, async (err, data) => {
+                expect(err).to.be(undefined);
+                data.files[0].getFile()
+                    .then(() => done('不可能执行到这'))
+                    .catch(err => {
+                        expect(err.message).to.be('下载终止');
+                        done();
+                    });
+            });
+        });
+
         describe('测试向对方发送文件', function () {
 
             it('测试发送固定大小文件', async function () {
