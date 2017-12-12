@@ -1,5 +1,5 @@
 /**
- * 正在被接收的文件的描述
+ * 远端发来的文件
  */
 export interface ReceivingFile {
     /**

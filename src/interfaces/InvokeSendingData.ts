@@ -1,5 +1,5 @@
 /**
- * 要被发送的文件的描述
+ * 要被发送的文件
  */
 export interface SendingFile {
     /**

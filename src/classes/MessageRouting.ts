@@ -219,25 +219,28 @@ export abstract class MessageRouting {
         this._messageListener.receive([MessageType._onOpen] as any, () => {
             this._messageListener._eventLevel.getChildLevel([MessageType.broadcast] as any, true)
                 .children.forEach((level, broadcastSender) => {
-                    const eventName: string[] = [];
-
-                    const forEachLevel = (level: EventLevel, levelName: string) => {
+                    
+                    const forEachLevel = (eventName: string[], level: EventLevel, levelName: string) => {
                         eventName.push(levelName);
 
                         if (level.receivers.size > 0) {
                             this._send_BroadcastOpenMessage(broadcastSender, eventName.join('.'));
                         }
 
-                        level.children.forEach(forEachLevel);
+                        level.children.forEach((level, levelName) => forEachLevel(eventName, level, levelName));
                     };
 
-                    level.children.forEach(forEachLevel);
+                    level.children.forEach((level, levelName) => forEachLevel([], level, levelName));
                 });
         });
 
-        //当连接断开后立刻清理对方注册过的广播路径
         this._messageListener.receive([MessageType._onClose] as any, () => {
+            //当连接断开后立刻清理对方注册过的广播路径
             this._messageListener.cancelDescendants([MessageType._broadcast_white_list] as any);
+
+            //取消所有调用操作
+            this._messageListener.triggerDescendants([MessageType.invoke_failed] as any, { error: '网络中断' });
+            this._messageListener.triggerDescendants([MessageType.invoke_file_failed] as any, { error: '网络中断' });
         });
     }
 

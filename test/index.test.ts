@@ -651,7 +651,7 @@ describe('测试remote-invoke', function () {
                 s_rv.broadcast('test.a', 2);
                 s_rv.broadcast('test.a.b', 3);
 
-                s_rv.broadcast('test2.a.b', 4);
+                s_rv.broadcast('test2.a.b', 4); //注意：这条消息应当发不出去
 
                 setTimeout(() => {
                     expect(result1).to.be.eql([1, 2, 3]);
@@ -691,8 +691,6 @@ describe('测试remote-invoke', function () {
         });
 
         it('测试网络连接断开后，清空对方注册过的广播', function (done) {
-            //注意观察发送的消息
-
             c_rv.receive('server', 'test', (data) => { });
             c_rv.receive('server', 'test.a', (data) => { });
 
@@ -713,6 +711,7 @@ describe('测试remote-invoke', function () {
 
             c_rv.receive('server', 'test', (data) => { });
             c_rv.receive('server', 'test.a', (data) => { });
+            c_rv.receive('server', 'test2', (data) => { });
 
             setTimeout(() => {
                 (<any>s_rv)._socket.onClose();  //模拟网络断开
