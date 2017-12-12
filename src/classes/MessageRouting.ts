@@ -241,6 +241,9 @@ export abstract class MessageRouting {
             //取消所有调用操作
             this._messageListener.triggerDescendants([MessageType.invoke_failed] as any, { error: '网络中断' });
             this._messageListener.triggerDescendants([MessageType.invoke_file_failed] as any, { error: '网络中断' });
+
+            //取消所有调用发送
+            this._messageListener.triggerDescendants([MessageType.invoke_finish] as any);
         });
     }
 

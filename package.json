@@ -1,6 +1,6 @@
 {
     "name": "remote-invoke",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "description": "为js提供一种简单调用远端服务的方法",
     "main": "./bin/index.js",
     "types": "./bin/index.d.ts",
