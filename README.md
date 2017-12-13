@@ -4,6 +4,7 @@
 ### [API](./bin/classes/RemoteInvoke.d.ts)
 ### [例子](./test/index.test.ts)
 ### [通信规范](./src/interfaces/MessageType.ts)
+### [remote-invoke-router](https://github.com/mx601595686/remote-invoke-router) 消息路由器。
 
 # 类似方案
 > [crossbar.io](https://crossbar.io/)    
