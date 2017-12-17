@@ -573,11 +573,12 @@ export class BroadcastCloseMessage extends MessageData {
     messageID: number;
     broadcastSender: string;   //广播的发送者  
     path: string;              //广播的路径
+    includeAncestor: boolean;  //是否需要一并关闭所有父级监听器
 
     pack(): [string, Buffer] {
         return [
             JSON.stringify([this.type]),
-            Buffer.from(JSON.stringify([this.messageID, this.broadcastSender, this.path]))
+            Buffer.from(JSON.stringify([this.messageID, this.broadcastSender, this.path, this.includeAncestor]))
         ];
     }
 
@@ -588,6 +589,7 @@ export class BroadcastCloseMessage extends MessageData {
         bcm.messageID = p_body[0];
         bcm.broadcastSender = p_body[1];
         bcm.path = p_body[2];
+        bcm.includeAncestor = p_body[3];
 
         if (bcm.broadcastSender !== mr.moduleName)
             throw new Error(`对方尝试关闭不属于自己的广播。对方所期待的广播发送者:${bcm.broadcastSender}`);
@@ -598,7 +600,7 @@ export class BroadcastCloseMessage extends MessageData {
         return bcm;
     }
 
-    static create(mr: MessageRouting, messageID: number, broadcastSender: string, path: string) {
+    static create(mr: MessageRouting, messageID: number, broadcastSender: string, path: string, includeAncestor: boolean = false) {
         if (path.length > mr.pathMaxLength)
             throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
 
@@ -607,6 +609,7 @@ export class BroadcastCloseMessage extends MessageData {
         bcm.messageID = messageID;
         bcm.broadcastSender = broadcastSender;
         bcm.path = path;
+        bcm.includeAncestor = includeAncestor;
 
         return bcm;
     }

@@ -159,9 +159,10 @@ export declare class BroadcastCloseMessage extends MessageData {
     messageID: number;
     broadcastSender: string;
     path: string;
+    includeAncestor: boolean;
     pack(): [string, Buffer];
     static parse(mr: MessageRouting, header: any[], body: Buffer): BroadcastCloseMessage;
-    static create(mr: MessageRouting, messageID: number, broadcastSender: string, path: string): BroadcastCloseMessage;
+    static create(mr: MessageRouting, messageID: number, broadcastSender: string, path: string, includeAncestor?: boolean): BroadcastCloseMessage;
 }
 export declare class BroadcastCloseFinishMessage extends MessageData {
     type: MessageType;

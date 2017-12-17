@@ -163,13 +163,7 @@ export abstract class MessageRouting {
                         if (this._messageListener.hasAncestors(eventName))
                             this._messageListener.triggerAncestors(eventName, msg.data, true, true);
                         else { //如果没有注册过这个广播的监听器，就通知对方不要再发送了
-                            msg.path.split('.').reduce((pre, cur, index) => {  //由于不知道在对方自己还注册了哪些监听器，所以只有将path的每一级都取消一次
-                                const result = pre + (index === 0 ? '' : '.') + cur;
-                                this._send_BroadcastCloseMessage(msg.sender, result);
-
-                                return result;
-                            }, '');
-
+                            this._send_BroadcastCloseMessage(msg.sender, msg.path, true);
                             this._printError(`收到了没有注册过的广播 broadcastSender:${msg.sender} path:${msg.path}`, new Error());
                         }
 
@@ -197,7 +191,11 @@ export abstract class MessageRouting {
                         const msg = BroadcastCloseMessage.parse(this, p_header, body);
                         this._printMessage(false, msg);
 
-                        this._messageListener.cancel([MessageType._broadcast_white_list, ...msg.path.split('.')] as any);  //清除标记
+                        if (msg.includeAncestor)
+                            this._messageListener.cancelAncestors([MessageType._broadcast_white_list, ...msg.path.split('.')] as any);  //清除标记
+                        else
+                            this._messageListener.cancel([MessageType._broadcast_white_list, ...msg.path.split('.')] as any);  //清除标记
+
                         this._send_BroadcastCloseFinishMessage(msg);
 
                         break;
@@ -457,9 +455,9 @@ export abstract class MessageRouting {
             .catch(err => this._printError('向对方发送"BroadcastOpenFinishMessage"失败', err));
     }
 
-    protected _send_BroadcastCloseMessage(broadcastSender: string, path: string): void {
+    protected _send_BroadcastCloseMessage(broadcastSender: string, path: string, includeAncestor?: boolean): void {
         if (this._socket.connected) {    //加这个判断是为了确保"MessageType._onClose"能够触发
-            const result = BroadcastCloseMessage.create(this, this._messageID++, broadcastSender, path);
+            const result = BroadcastCloseMessage.create(this, this._messageID++, broadcastSender, path, includeAncestor);
 
             const interval = () => {
                 this._send_MessageData(result)

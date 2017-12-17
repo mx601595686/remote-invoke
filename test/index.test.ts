@@ -690,10 +690,7 @@ describe('测试remote-invoke', function () {
             //注意观察：这一行代码应当一条发送或反馈的消息都没有
             c_rv.broadcast('test', 'abc');
 
-            //注意这个应当只返回一条BroadcastCloseMessage
-            (c_rv as any)._send_MessageData(BroadcastMessage.create(c_rv, 'test1', '123'));
-
-            //注意这个应当只返回3条BroadcastCloseMessage
+            //注意这个应当返回一条BroadcastCloseMessage，并且includeAncestor=true
             (c_rv as any)._send_MessageData(BroadcastMessage.create(c_rv, 'test2.a.b', '456'));
 
             setTimeout(done, 1000);

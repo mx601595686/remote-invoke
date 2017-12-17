@@ -262,6 +262,7 @@ export enum MessageType {
      *      messageID:number          //消息编号       
      *      broadcastSender:string    //广播的发送者      
      *      path:string               //广播的路径         
+     *      includeAncestor           //是否把path的所有父级监听器也一并取消了，默认false。这个主要用于，当收到了一个自己没有注册过的广播，需要告知发送者以后不要再发送该广播以及其父级的所有广播。  
      * ]     
      * 
      * 在下面两种情况下才需要发送该消息
