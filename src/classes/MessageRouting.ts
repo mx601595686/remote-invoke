@@ -162,9 +162,14 @@ export abstract class MessageRouting {
 
                         if (this._messageListener.hasAncestors(eventName))
                             this._messageListener.triggerAncestors(eventName, msg.data, true, true);
-                        else {
-                            //如果没有注册过这个广播的监听器，就通知对方不要再发送了
-                            this._send_BroadcastCloseMessage(msg.sender, msg.path);
+                        else { //如果没有注册过这个广播的监听器，就通知对方不要再发送了
+                            msg.path.split('.').reduce((pre, cur, index) => {  //由于不知道在对方自己还注册了哪些监听器，所以只有将path的每一级都取消一次
+                                const result = pre + (index === 0 ? '' : '.') + cur;
+                                this._send_BroadcastCloseMessage(msg.sender, result);
+
+                                return result;
+                            }, '');
+
                             this._printError(`收到了没有注册过的广播 broadcastSender:${msg.sender} path:${msg.path}`, new Error());
                         }
 

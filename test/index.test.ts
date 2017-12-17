@@ -5,6 +5,7 @@ import { EventSpace } from 'eventspace/bin/classes/EventSpace';
 
 import { RemoteInvoke, MessageType } from '../src';
 import { BinaryWS_socket } from './BinaryWS_socket';
+import { BroadcastMessage } from '../src/classes/MessageData';
 
 //注意：测试需要8080端口，请确保不会被占用
 describe('测试remote-invoke', function () {
@@ -685,12 +686,20 @@ describe('测试remote-invoke', function () {
         });
 
         it('测试发送对方没有注册过的广播', function (done) {
-            //注意观察：应当一条发送或反馈的消息都没有
-            c_rv.broadcast('test', '123');
+
+            //注意观察：这一行代码应当一条发送或反馈的消息都没有
+            c_rv.broadcast('test', 'abc');
+
+            //注意这个应当只返回一条BroadcastCloseMessage
+            (c_rv as any)._send_MessageData(BroadcastMessage.create(c_rv, 'test1', '123'));
+
+            //注意这个应当只返回3条BroadcastCloseMessage
+            (c_rv as any)._send_MessageData(BroadcastMessage.create(c_rv, 'test2.a.b', '456'));
+
             setTimeout(done, 1000);
         });
 
-        it('测试网络连接断开后，清空对方注册过的广播', function (done) {
+        it('测试网络连接断开后，清空对方注册过的广播path', function (done) {
             c_rv.receive('server', 'test', (data) => { });
             c_rv.receive('server', 'test.a', (data) => { });
 
@@ -704,7 +713,7 @@ describe('测试remote-invoke', function () {
             }, 1000);
         });
 
-        it('测试网络重连后，向方发送注册过的广播', function (done) {
+        it('测试网络重连后，向方发送注册过的广播path', function (done) {
             //注意观察发送的消息
 
             this.timeout(20 * 1000);
