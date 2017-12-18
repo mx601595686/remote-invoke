@@ -570,7 +570,6 @@ export class BroadcastOpenFinishMessage extends MessageData {
 export class BroadcastCloseMessage extends MessageData {
 
     type = MessageType.broadcast_close;
-    messageID: number;
     broadcastSender: string;   //广播的发送者  
     path: string;              //广播的路径
     includeAncestor: boolean;  //是否需要一并关闭所有父级监听器
@@ -578,7 +577,7 @@ export class BroadcastCloseMessage extends MessageData {
     pack(): [string, Buffer] {
         return [
             JSON.stringify([this.type]),
-            Buffer.from(JSON.stringify([this.messageID, this.broadcastSender, this.path, this.includeAncestor]))
+            Buffer.from(JSON.stringify([this.broadcastSender, this.path, this.includeAncestor]))
         ];
     }
 
@@ -586,10 +585,9 @@ export class BroadcastCloseMessage extends MessageData {
         const bcm = new BroadcastCloseMessage();
 
         const p_body = JSON.parse(body.toString());
-        bcm.messageID = p_body[0];
-        bcm.broadcastSender = p_body[1];
-        bcm.path = p_body[2];
-        bcm.includeAncestor = p_body[3];
+        bcm.broadcastSender = p_body[0];
+        bcm.path = p_body[1];
+        bcm.includeAncestor = p_body[2];
 
         if (bcm.broadcastSender !== mr.moduleName)
             throw new Error(`对方尝试关闭不属于自己的广播。对方所期待的广播发送者:${bcm.broadcastSender}`);
@@ -600,46 +598,16 @@ export class BroadcastCloseMessage extends MessageData {
         return bcm;
     }
 
-    static create(mr: MessageRouting, messageID: number, broadcastSender: string, path: string, includeAncestor: boolean = false) {
+    static create(mr: MessageRouting, broadcastSender: string, path: string, includeAncestor: boolean = false) {
         if (path.length > mr.pathMaxLength)
             throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
 
         const bcm = new BroadcastCloseMessage();
 
-        bcm.messageID = messageID;
         bcm.broadcastSender = broadcastSender;
         bcm.path = path;
         bcm.includeAncestor = includeAncestor;
 
         return bcm;
-    }
-}
-
-export class BroadcastCloseFinishMessage extends MessageData {
-
-    type = MessageType.broadcast_close_finish;
-    messageID: number;
-
-    pack(): [string, Buffer] {
-        return [
-            JSON.stringify([this.type]),
-            Buffer.from(this.messageID.toString())
-        ];
-    }
-
-    static parse(mr: MessageRouting, header: any[], body: Buffer) {
-        const bcf = new BroadcastCloseFinishMessage();
-
-        bcf.messageID = Number.parseInt(body.toString());
-
-        return bcf;
-    }
-
-    static create(mr: MessageRouting, bcm: BroadcastCloseMessage) {
-        const bcf = new BroadcastCloseFinishMessage();
-
-        bcf.messageID = bcm.messageID;
-
-        return bcf;
     }
 }

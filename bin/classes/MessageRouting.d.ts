@@ -68,7 +68,6 @@ export declare abstract class MessageRouting {
     protected _send_BroadcastOpenMessage(broadcastSender: string, path: string): void;
     private _send_BroadcastOpenFinishMessage(msg);
     protected _send_BroadcastCloseMessage(broadcastSender: string, path: string, includeAncestor?: boolean): void;
-    private _send_BroadcastCloseFinishMessage(msg);
     /**
      * 便于使用socket发送消息
      */

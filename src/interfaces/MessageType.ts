@@ -259,7 +259,6 @@ export enum MessageType {
      * ]       
      * body格式：       
      * [       
-     *      messageID:number          //消息编号       
      *      broadcastSender:string    //广播的发送者      
      *      path:string               //广播的路径         
      *      includeAncestor           //是否把path的所有父级监听器也一并取消了，默认false。这个主要用于，当收到了一个自己没有注册过的广播，需要告知发送者以后不要再发送该广播以及其父级的所有广播。  
@@ -267,25 +266,11 @@ export enum MessageType {
      * 
      * 在下面两种情况下才需要发送该消息
      * 1. 用户在某条路径上已经没有注册的有广播监听器了
-     * 2. 当用户收到了自己没有注册过的广播的时候通知对方。（注意：由于不知道在对方自己还注册了哪些监听器，所以只有将path的每一级都取消一次）   
+     * 2. 当用户收到了自己没有注册过的广播的时候通知对方。（注意：由于不知道在对方自己还注册了哪些监听器，所以需要将includeAncestor设置为true）   
      * 
-     * 注意：如果对方在3分钟之内没有回应则重新再发一次，直到收到对方回应或网络断开为止。
+     * 备注：由于对方是否收到以及是否正确处理broadcast_close对系统正常运行并不产生影响，所以没有添加broadcast_close处理后反馈消息类型
      */
     broadcast_close,
-
-    /**
-     * 告知websocket的另一端，之前的broadcast_close已经被正确处理了
-     * 
-     * 头部格式：       
-     * [       
-     *      type = broadcast_close_finish    //消息类型       
-     * ]       
-     * body格式：       
-     * [       
-     *      messageID:number    //broadcast_close所设置的消息编号       
-     * ]     
-     */
-    broadcast_close_finish,
 
     /* -----------------------------------下面是一些在程序内部使用的消息，不在网络上进行传输------------------------------------ */
 

@@ -18,7 +18,6 @@ import {
     BroadcastOpenMessage,
     BroadcastOpenFinishMessage,
     BroadcastCloseMessage,
-    BroadcastCloseFinishMessage,
     MessageData
 } from './MessageData';
 
@@ -195,16 +194,6 @@ export abstract class MessageRouting {
                             this._messageListener.cancelAncestors([MessageType._broadcast_white_list, ...msg.path.split('.')] as any);  //清除标记
                         else
                             this._messageListener.cancel([MessageType._broadcast_white_list, ...msg.path.split('.')] as any);  //清除标记
-
-                        this._send_BroadcastCloseFinishMessage(msg);
-
-                        break;
-                    }
-                    case MessageType.broadcast_close_finish: {
-                        const msg = BroadcastCloseFinishMessage.parse(this, p_header, body);
-                        this._printMessage(false, msg);
-
-                        this._messageListener.trigger([msg.type, msg.messageID] as any, msg);
 
                         break;
                     }
@@ -456,35 +445,8 @@ export abstract class MessageRouting {
     }
 
     protected _send_BroadcastCloseMessage(broadcastSender: string, path: string, includeAncestor?: boolean): void {
-        if (this._socket.connected) {    //加这个判断是为了确保"MessageType._onClose"能够触发
-            const result = BroadcastCloseMessage.create(this, this._messageID++, broadcastSender, path, includeAncestor);
-
-            const interval = () => {
-                this._send_MessageData(result)
-                    .catch(err => this._printError(`向对方发送"BroadcastCloseMessage -> 通知对方现在不再接收指定路径的广播"失败。broadcastSender:${broadcastSender} path:${path}`, err));
-            }
-
-            const timer = setInterval(interval, this.timeout);    //到了时间如果还没有收到对方响应就重新发送一次
-
-            this._messageListener.receiveOnce([MessageType.broadcast_close_finish, result.messageID] as any, () => {
-                clearInterval(timer);
-                this._messageListener.cancel([MessageType._onClose, MessageType.broadcast_close_finish, result.messageID] as any);
-            });
-
-            this._messageListener.receiveOnce([MessageType._onClose, MessageType.broadcast_close_finish, result.messageID] as any, () => {
-                clearInterval(timer);
-                this._messageListener.cancel([MessageType.broadcast_close_finish, result.messageID] as any);
-            });
-
-            interval();
-        } else {
-            this._printError(`向对方发送"BroadcastCloseMessage -> 通知对方现在不再接收指定路径的广播"失败。broadcastSender:${broadcastSender} path:${path}`, new Error('网络中断'));
-        }
-    }
-
-    private _send_BroadcastCloseFinishMessage(msg: BroadcastCloseMessage): void {
-        this._send_MessageData(BroadcastCloseFinishMessage.create(this, msg))
-            .catch(err => this._printError('向对方发送"BroadcastCloseFinishMessage"失败', err));
+        this._send_MessageData(BroadcastCloseMessage.create(this, broadcastSender, path, includeAncestor))
+            .catch(err => this._printError(`向对方发送"BroadcastCloseMessage -> 通知对方现在不再接收指定路径的广播"失败。broadcastSender:${broadcastSender} path:${path}`, err));
     }
 
     /**

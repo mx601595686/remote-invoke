@@ -667,14 +667,12 @@ describe('测试remote-invoke', function () {
 
                         expect(s_es.hasDescendants([MessageType.broadcast] as any)).to.not.be.ok();
                         expect(s_es.hasDescendants([MessageType.broadcast_close] as any)).to.not.be.ok();
-                        expect(s_es.hasDescendants([MessageType.broadcast_close_finish] as any)).to.not.be.ok();
                         expect(s_es.hasDescendants([MessageType.broadcast_open] as any)).to.not.be.ok();
                         expect(s_es.hasDescendants([MessageType.broadcast_open_finish] as any)).to.not.be.ok();
                         expect(s_es.hasDescendants([MessageType._broadcast_white_list] as any)).to.not.be.ok();
 
                         expect(c_es.hasDescendants([MessageType.broadcast] as any)).to.not.be.ok();
                         expect(c_es.hasDescendants([MessageType.broadcast_close] as any)).to.not.be.ok();
-                        expect(c_es.hasDescendants([MessageType.broadcast_close_finish] as any)).to.not.be.ok();
                         expect(c_es.hasDescendants([MessageType.broadcast_open] as any)).to.not.be.ok();
                         expect(c_es.hasDescendants([MessageType.broadcast_open_finish] as any)).to.not.be.ok();
                         expect(c_es.hasDescendants([MessageType._broadcast_white_list] as any)).to.not.be.ok();
