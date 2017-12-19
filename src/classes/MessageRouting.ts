@@ -214,17 +214,16 @@ export abstract class MessageRouting {
             this._messageListener._eventLevel.getChildLevel([MessageType.broadcast] as any, true)
                 .children.forEach((level, broadcastSender) => {
 
-                    const forEachLevel = (eventName: string[], level: EventLevel, levelName: string) => {
-                        eventName.push(levelName);
+                    const forEachLevel = (eventName: string, level: EventLevel, levelName: string) => {
+                        eventName = eventName === '' ? levelName : eventName + '.' + levelName;
 
-                        if (level.receivers.size > 0) {
-                            this._send_BroadcastOpenMessage(broadcastSender, eventName.join('.'));
-                        }
+                        if (level.receivers.size > 0)
+                            this._send_BroadcastOpenMessage(broadcastSender, eventName);
 
                         level.children.forEach((level, levelName) => forEachLevel(eventName, level, levelName));
                     };
 
-                    level.children.forEach((level, levelName) => forEachLevel([], level, levelName));
+                    level.children.forEach((level, levelName) => forEachLevel('', level, levelName));
                 });
         });
 

@@ -708,17 +708,21 @@ describe('测试remote-invoke', function () {
             }, 1000);
         });
 
-        it('测试网络重连后，向方发送注册过的广播path', function (done) {
+        it.only('测试网络重连后，向方发送注册过的广播path', function (done) {
             //注意观察发送的消息
 
             this.timeout(20 * 1000);
 
             c_rv.receive('server', 'test', (data) => { });
             c_rv.receive('server', 'test.a', (data) => { });
+            c_rv.receive('server', 'test.a.b', (data) => { });
+            c_rv.receive('server', 'test.c', (data) => { });
+            c_rv.receive('server', 'test.c.d', (data) => { });
             c_rv.receive('server', 'test2', (data) => { });
 
             setTimeout(() => {
                 (<any>s_rv)._socket.onClose();  //模拟网络断开
+                console.log('重发');
                 (<any>c_rv)._socket.onOpen();   //模拟网络重连
 
                 const s_es = (<any>s_rv)._messageListener as EventSpace;
