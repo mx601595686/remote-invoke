@@ -30,7 +30,7 @@ export class RemoteInvoke extends MessageRouting {
      */
     export<F extends (data: InvokeReceivingData) => Promise<void | InvokeSendingData>>(path: string, func: F): F {
         this.cancelExport(path);
-        this._messageListener.receive([MessageType.invoke_request, path] as any, async (msg: InvokeRequestMessage) => {
+        this._messageListener.get([MessageType.invoke_request, path] as any).on(async (msg: InvokeRequestMessage) => {
             const { data, clean } = this._prepare_InvokeReceivingData(msg);
 
             try {
@@ -51,7 +51,7 @@ export class RemoteInvoke extends MessageRouting {
      * @param path 之前导出的路径
      */
     cancelExport(path: string) {
-        this._messageListener.cancel([MessageType.invoke_request, path] as any);
+        this._messageListener.get([MessageType.invoke_request, path] as any).off();
     }
 
     /**
@@ -112,13 +112,12 @@ export class RemoteInvoke extends MessageRouting {
      * @param func 对应的回调方法
      */
     receive<F extends (arg: any) => any>(sender: string, path: string, func: F): F {
-        const eventName = [MessageType.broadcast, sender, ...path.split('.')] as any;
+        const layer = this._messageListener.get([MessageType.broadcast, sender, ...path.split('.')] as any);
 
-        if (!this._messageListener.has(eventName)) {  //如果还没注册过，通知对方现在要接收指定路径广播
+        if (!layer.has())   //如果还没注册过，通知对方现在要接收指定路径广播
             this._send_BroadcastOpenMessage(sender, path);
-        }
 
-        this._messageListener.receive(eventName, func); //不包装一下监听器，是为了考虑到cancelReceive
+        layer.on(func); //不包装一下监听器，是为了考虑到cancelReceive
         return func;
     }
 
@@ -129,12 +128,12 @@ export class RemoteInvoke extends MessageRouting {
      * @param listener 要指定删除的监听器
      */
     cancelReceive(sender: string, path: string, listener?: (arg: any) => any) {
-        const eventName = [MessageType.broadcast, sender, ...path.split('.')] as any;
+        const layer = this._messageListener.get([MessageType.broadcast, sender, ...path.split('.')] as any);
 
-        if (this._messageListener.has(eventName)) {  //确保真的有注册过再执行删除
-            this._messageListener.cancel(eventName, listener);
+        if (layer.has(listener as any)) {  //确保真的有注册过再执行删除
+            layer.off(listener as any);
 
-            if (!this._messageListener.has(eventName)) {    //如果删光了，就通知对方不再接收了
+            if (!layer.has()) {    //如果删光了，就通知对方不再接收了
                 this._send_BroadcastCloseMessage(sender, path);
             }
         }
@@ -235,7 +234,7 @@ export class RemoteInvoke extends MessageRouting {
             data: { data: msg.data, files },
             clean: () => { //清理正在下载的
                 cleaned = true;
-                this._messageListener.triggerDescendants([MessageType.invoke_file_failed, msg.sender, messageID] as any, { error: '下载终止' });
+                this._messageListener.get([MessageType.invoke_file_failed, msg.sender, messageID] as any).triggerDescendants({ error: '下载终止' });
             }
         };
     }

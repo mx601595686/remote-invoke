@@ -1,5 +1,4 @@
-import { EventSpace } from "eventspace/bin/classes/EventSpace";
-import { EventLevel } from 'eventspace/bin/classes/EventLevel';
+import EventSpace from "eventspace";
 import log from 'log-formatter';
 
 import { MessageType } from '../interfaces/MessageType';
@@ -88,10 +87,10 @@ export abstract class MessageRouting {
                         const msg = InvokeRequestMessage.parse(this, p_header, body);
                         this._printMessage(false, msg);
 
-                        const eventName = [msg.type, msg.path] as any;
+                        const layer = this._messageListener.get([msg.type, msg.path] as any);
 
-                        if (this._messageListener.has(eventName))
-                            this._messageListener.trigger(eventName, msg);
+                        if (layer.has())
+                            layer.trigger(msg);
                         else
                             this._send_InvokeFailedMessage(msg, new Error("调用的方法不存在"));
 
@@ -101,7 +100,7 @@ export abstract class MessageRouting {
                         const msg = InvokeResponseMessage.parse(this, p_header, body);
                         this._printMessage(false, msg);
 
-                        this._messageListener.trigger([msg.type, msg.sender, msg.requestMessageID] as any, msg);
+                        this._messageListener.get([msg.type, msg.sender, msg.requestMessageID] as any).trigger(msg);
 
                         break;
                     }
@@ -109,7 +108,7 @@ export abstract class MessageRouting {
                         const msg = InvokeFinishMessage.parse(this, p_header, body);
                         this._printMessage(false, msg);
 
-                        this._messageListener.trigger([msg.type, msg.sender, msg.responseMessageID] as any, msg);
+                        this._messageListener.get([msg.type, msg.sender, msg.responseMessageID] as any).trigger(msg);
 
                         break;
                     }
@@ -117,7 +116,7 @@ export abstract class MessageRouting {
                         const msg = InvokeFailedMessage.parse(this, p_header, body);
                         this._printMessage(false, msg);
 
-                        this._messageListener.trigger([msg.type, msg.sender, msg.requestMessageID] as any, msg);
+                        this._messageListener.get([msg.type, msg.sender, msg.requestMessageID] as any).trigger(msg);
 
                         break;
                     }
@@ -125,7 +124,7 @@ export abstract class MessageRouting {
                         const msg = InvokeFileRequestMessage.parse(this, p_header, body);
                         this._printMessage(false, msg);
 
-                        this._messageListener.trigger([msg.type, msg.sender, msg.messageID, msg.id] as any, msg);
+                        this._messageListener.get([msg.type, msg.sender, msg.messageID, msg.id] as any).trigger(msg);
 
                         break;
                     }
@@ -133,7 +132,7 @@ export abstract class MessageRouting {
                         const msg = InvokeFileResponseMessage.parse(this, p_header, body);
                         this._printMessage(false, msg);
 
-                        this._messageListener.trigger([msg.type, msg.sender, msg.messageID, msg.id] as any, msg);
+                        this._messageListener.get([msg.type, msg.sender, msg.messageID, msg.id] as any).trigger(msg);
 
                         break;
                     }
@@ -141,7 +140,7 @@ export abstract class MessageRouting {
                         const msg = InvokeFileFailedMessage.parse(this, p_header, body);
                         this._printMessage(false, msg);
 
-                        this._messageListener.trigger([msg.type, msg.sender, msg.messageID, msg.id] as any, msg);
+                        this._messageListener.get([msg.type, msg.sender, msg.messageID, msg.id] as any).trigger(msg);
 
                         break;
                     }
@@ -149,7 +148,7 @@ export abstract class MessageRouting {
                         const msg = InvokeFileFinishMessage.parse(this, p_header, body);
                         this._printMessage(false, msg);
 
-                        this._messageListener.trigger([msg.type, msg.sender, msg.messageID, msg.id] as any, msg);
+                        this._messageListener.get([msg.type, msg.sender, msg.messageID, msg.id] as any).trigger(msg);
 
                         break;
                     }
@@ -157,10 +156,10 @@ export abstract class MessageRouting {
                         const msg = BroadcastMessage.parse(this, p_header, body);
                         this._printMessage(false, msg);
 
-                        const eventName = [msg.type, msg.sender, ...msg.path.split('.')] as any;
+                        const layer = this._messageListener.get([msg.type, msg.sender, ...msg.path.split('.')] as any);
 
-                        if (this._messageListener.hasAncestors(eventName))
-                            this._messageListener.triggerAncestors(eventName, msg.data, true, true);
+                        if (layer.hasAncestors())
+                            layer.triggerAncestors(msg.data, true, true);
                         else { //如果没有注册过这个广播的监听器，就通知对方不要再发送了
                             this._send_BroadcastCloseMessage(msg.sender, msg.path, true);
                             this._printError(`收到了没有注册过的广播 broadcastSender:${msg.sender} path:${msg.path}`, new Error());
@@ -173,7 +172,7 @@ export abstract class MessageRouting {
                         this._printMessage(false, msg);
 
                         //记录对方要监听哪个路径上的广播
-                        this._messageListener.receive([MessageType._broadcast_white_list, ...msg.path.split('.')] as any, true as any);
+                        this._messageListener.get([MessageType._broadcast_white_list, ...msg.path.split('.')] as any).data = true;
                         this._send_BroadcastOpenFinishMessage(msg);
 
                         break;
@@ -182,7 +181,7 @@ export abstract class MessageRouting {
                         const msg = BroadcastOpenFinishMessage.parse(this, p_header, body);
                         this._printMessage(false, msg);
 
-                        this._messageListener.trigger([msg.type, msg.messageID] as any, msg);
+                        this._messageListener.get([msg.type, msg.messageID] as any).trigger(msg);
 
                         break;
                     }
@@ -191,9 +190,9 @@ export abstract class MessageRouting {
                         this._printMessage(false, msg);
 
                         if (msg.includeAncestor)
-                            this._messageListener.cancelAncestors([MessageType._broadcast_white_list, ...msg.path.split('.')] as any);  //清除标记
+                            this._messageListener.get([MessageType._broadcast_white_list, ...msg.path.split('.')] as any).forEachAncestors(layer => layer.data = undefined, true);  //清除标记
                         else
-                            this._messageListener.cancel([MessageType._broadcast_white_list, ...msg.path.split('.')] as any);  //清除标记
+                            this._messageListener.get([MessageType._broadcast_white_list, ...msg.path.split('.')] as any).data = undefined;  //清除标记
 
                         break;
                     }
@@ -205,38 +204,29 @@ export abstract class MessageRouting {
             }
         };
 
-        this._socket.onOpen = () => this._messageListener.triggerDescendants([MessageType._onOpen] as any);
+        this._socket.onOpen = () => this._messageListener.get([MessageType._onOpen] as any).triggerDescendants();
 
-        this._socket.onClose = () => this._messageListener.triggerDescendants([MessageType._onClose] as any);
+        this._socket.onClose = () => this._messageListener.get([MessageType._onClose] as any).triggerDescendants();
 
         //当端口打开之后立刻通知对方要监听哪些广播
-        this._messageListener.receive([MessageType._onOpen] as any, () => {
-            this._messageListener._eventLevel.getChildLevel([MessageType.broadcast] as any, true)
-                .children.forEach((level, broadcastSender) => {
-
-                    const forEachLevel = (eventName: string, level: EventLevel, levelName: string) => {
-                        eventName = eventName === '' ? levelName : eventName + '.' + levelName;
-
-                        if (level.receivers.size > 0)
-                            this._send_BroadcastOpenMessage(broadcastSender, eventName);
-
-                        level.children.forEach((level, levelName) => forEachLevel(eventName, level, levelName));
-                    };
-
-                    level.children.forEach((level, levelName) => forEachLevel('', level, levelName));
+        this._messageListener.get([MessageType._onOpen] as any).on(() => {
+            this._messageListener.get([MessageType.broadcast] as any).children.forEach((layer, broadcastSender) => {
+                layer.forEachDescendants(layer => {
+                    if (layer.has()) this._send_BroadcastOpenMessage(broadcastSender, layer.fullName.join('.'));
                 });
+            });
         });
 
-        this._messageListener.receive([MessageType._onClose] as any, () => {
+        this._messageListener.get([MessageType._onClose] as any).on(() => {
             //当连接断开后立刻清理对方注册过的广播路径
-            this._messageListener.cancelDescendants([MessageType._broadcast_white_list] as any);
+            this._messageListener.get([MessageType._broadcast_white_list] as any).children.clear();
 
             //取消所有调用操作
-            this._messageListener.triggerDescendants([MessageType.invoke_failed] as any, { error: '网络中断' });
-            this._messageListener.triggerDescendants([MessageType.invoke_file_failed] as any, { error: '网络中断' });
+            this._messageListener.get([MessageType.invoke_failed] as any).triggerDescendants({ error: '网络中断' });
+            this._messageListener.get([MessageType.invoke_file_failed] as any).triggerDescendants({ error: '网络中断' });
 
             //取消所有调用发送
-            this._messageListener.triggerDescendants([MessageType.invoke_finish] as any);
+            this._messageListener.get([MessageType.invoke_finish] as any).triggerDescendants();
         });
     }
 
@@ -245,18 +235,18 @@ export abstract class MessageRouting {
             const rm = InvokeRequestMessage.create(this, this._messageID++, receiver, path, data);
 
             const cleanMessageListener = () => {   //清理注册的消息监听器
-                this._messageListener.cancel([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any);
-                this._messageListener.cancel([MessageType.invoke_failed, rm.receiver, rm.requestMessageID] as any);
+                this._messageListener.get([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any).off();
+                this._messageListener.get([MessageType.invoke_failed, rm.receiver, rm.requestMessageID] as any).off();
             };
 
             const clean = this._send_File(rm, () => { cleanMessageListener(); reject(new Error('请求超时')); });
 
             this._send_MessageData(rm).then(() => {
-                this._messageListener.receiveOnce([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any, (msg: InvokeResponseMessage) => {
+                this._messageListener.get([MessageType.invoke_response, rm.receiver, rm.requestMessageID] as any).once((msg: InvokeResponseMessage) => {
                     clean(); cleanMessageListener(); resolve(msg);
                 });
 
-                this._messageListener.receiveOnce([MessageType.invoke_failed, rm.receiver, rm.requestMessageID] as any, (msg: InvokeFailedMessage) => {
+                this._messageListener.get([MessageType.invoke_failed, rm.receiver, rm.requestMessageID] as any).once((msg: InvokeFailedMessage) => {
                     clean(); cleanMessageListener(); reject(new Error(msg.error));
                 });
             }).catch(err => { clean(); reject(err); });
@@ -271,10 +261,10 @@ export abstract class MessageRouting {
                 this._send_File(rm, () => { })();
             } else {
                 const clean = this._send_File(rm, () => {
-                    this._messageListener.cancel([MessageType.invoke_finish, rm.receiver, rm.responseMessageID] as any);
+                    this._messageListener.get([MessageType.invoke_finish, rm.receiver, rm.responseMessageID] as any).off();
                 });
 
-                this._messageListener.receiveOnce([MessageType.invoke_finish, rm.receiver, rm.responseMessageID] as any, clean);
+                this._messageListener.get([MessageType.invoke_finish, rm.receiver, rm.responseMessageID] as any).once(clean);
             }
         }).catch(err => this._printError(`向对方发送"InvokeResponseMessage"失败`, err));
     }
@@ -287,7 +277,7 @@ export abstract class MessageRouting {
         const messageID = msg instanceof InvokeRequestMessage ? msg.requestMessageID : msg.responseMessageID;
         const clean = () => {  //清理资源回调
             clearTimeout(timer);
-            this._messageListener.cancelDescendants([MessageType.invoke_file_request, msg.receiver, messageID] as any);
+            this._messageListener.get([MessageType.invoke_file_request, msg.receiver, messageID] as any).offDescendants();
         }
         const timeout = () => { clean(); onTimeout(); };
 
@@ -302,7 +292,7 @@ export abstract class MessageRouting {
                 this._send_InvokeFileFailedMessage(msg, err);
             }
 
-            this._messageListener.receive([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any, (msg: InvokeFileRequestMessage) => {
+            this._messageListener.get([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any).on((msg: InvokeFileRequestMessage) => {
                 clearTimeout(timer);
                 timer = setTimeout(timeout, this.timeout);
 
@@ -355,14 +345,14 @@ export abstract class MessageRouting {
             const timer = setTimeout(() => { clean(); reject(new Error('请求超时')); }, this.timeout);
             const clean = () => {
                 clearTimeout(timer);
-                this._messageListener.cancel([MessageType.invoke_file_response, message.receiver, message.messageID, fileID] as any);
-                this._messageListener.cancel([MessageType.invoke_file_failed, message.receiver, message.messageID, fileID] as any);
-                this._messageListener.cancel([MessageType.invoke_file_finish, message.receiver, message.messageID, fileID] as any);
+                this._messageListener.get([MessageType.invoke_file_response, message.receiver, message.messageID, fileID] as any).off();
+                this._messageListener.get([MessageType.invoke_file_failed, message.receiver, message.messageID, fileID] as any).off();
+                this._messageListener.get([MessageType.invoke_file_finish, message.receiver, message.messageID, fileID] as any).off();
             };
 
             this._send_MessageData(message).then(() => {
                 //监听下载到的文件
-                this._messageListener.receiveOnce([MessageType.invoke_file_response, message.receiver, message.messageID, fileID] as any, (msg: InvokeFileResponseMessage) => {
+                this._messageListener.get([MessageType.invoke_file_response, message.receiver, message.messageID, fileID] as any).once((msg: InvokeFileResponseMessage) => {
                     clean();
 
                     if (index !== msg.index)
@@ -372,13 +362,13 @@ export abstract class MessageRouting {
                 });
 
                 //监听下载文件失败
-                this._messageListener.receiveOnce([MessageType.invoke_file_failed, message.receiver, message.messageID, fileID] as any, (msg: InvokeFileFailedMessage) => {
+                this._messageListener.get([MessageType.invoke_file_failed, message.receiver, message.messageID, fileID] as any).once((msg: InvokeFileFailedMessage) => {
                     clean();
                     reject(new Error(msg.error));
                 });
 
                 //监听下载文件结束
-                this._messageListener.receiveOnce([MessageType.invoke_file_finish, message.receiver, message.messageID, fileID] as any, (msg: InvokeFileFinishMessage) => {
+                this._messageListener.get([MessageType.invoke_file_finish, message.receiver, message.messageID, fileID] as any).once((msg: InvokeFileFinishMessage) => {
                     clean();
                     resolve();
                 });
@@ -391,14 +381,14 @@ export abstract class MessageRouting {
     }
 
     private _send_InvokeFileFailedMessage(msg: InvokeFileRequestMessage, error: Error): void {
-        this._messageListener.cancel([MessageType.invoke_file_request, msg.receiver, msg.messageID, msg.id] as any);   //不允许再下载该文件了
+        this._messageListener.get([MessageType.invoke_file_request, msg.receiver, msg.messageID, msg.id] as any).off();   //不允许再下载该文件了
 
         this._send_MessageData(InvokeFileFailedMessage.create(this, msg, error))
             .catch(err => this._printError(`向对方发送"InvokeFileFailedMessage-> ${error.message}"失败`, err));
     }
 
     private _send_InvokeFileFinishMessage(msg: InvokeFileRequestMessage): void {
-        this._messageListener.cancel([MessageType.invoke_file_request, msg.receiver, msg.messageID, msg.id] as any);   //不允许再下载该文件了
+        this._messageListener.get([MessageType.invoke_file_request, msg.receiver, msg.messageID, msg.id] as any).off();   //不允许再下载该文件了
 
         this._send_MessageData(InvokeFileFinishMessage.create(this, msg))
             .catch(err => this._printError('向对方发送"InvokeFileFinishMessage"失败', err));
@@ -406,7 +396,7 @@ export abstract class MessageRouting {
 
     protected _send_BroadcastMessage(path: string, data: any): void {
         //判断对方是否注册的有关于这条广播的监听器
-        if (this._messageListener.hasAncestors([MessageType._broadcast_white_list, ...path.split('.')] as any))
+        if (this._messageListener.get([MessageType._broadcast_white_list, ...path.split('.')] as any).forEachAncestors(layer => layer.data as any, true))
             this._send_MessageData(BroadcastMessage.create(this, path, data))
                 .catch(err => this._printError(`对外广播"BroadcastMessage"失败。path:${path}`, err));
     }
@@ -422,14 +412,14 @@ export abstract class MessageRouting {
 
             const timer = setInterval(interval, this.timeout);    //到了时间如果还没有收到对方响应就重新发送一次
 
-            this._messageListener.receiveOnce([MessageType.broadcast_open_finish, result.messageID] as any, () => {
+            this._messageListener.get([MessageType.broadcast_open_finish, result.messageID] as any).once(() => {
                 clearInterval(timer);
-                this._messageListener.cancel([MessageType._onClose, MessageType.broadcast_open_finish, result.messageID] as any);
+                this._messageListener.get([MessageType._onClose, MessageType.broadcast_open_finish, result.messageID] as any).off();
             });
 
-            this._messageListener.receiveOnce([MessageType._onClose, MessageType.broadcast_open_finish, result.messageID] as any, () => {
+            this._messageListener.get([MessageType._onClose, MessageType.broadcast_open_finish, result.messageID] as any).once(() => {
                 clearInterval(timer);
-                this._messageListener.cancel([MessageType.broadcast_open_finish, result.messageID] as any);
+                this._messageListener.get([MessageType.broadcast_open_finish, result.messageID] as any).off();
             });
 
             interval();

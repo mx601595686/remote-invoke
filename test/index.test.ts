@@ -1,7 +1,7 @@
 import * as http from 'http';
 import expect = require('expect.js');
 import { Server, ServerSocket } from 'binary-ws';
-import { EventSpace } from 'eventspace/bin/classes/EventSpace';
+import EventSpace from 'eventspace';
 
 import { RemoteInvoke, MessageType } from '../src';
 import { BinaryWS_socket } from './BinaryWS_socket';
@@ -52,8 +52,8 @@ describe('测试remote-invoke', function () {
 
         afterEach(function () {
             //清除所有导出的方法
-            ((<any>s_rv)._messageListener as EventSpace).cancelDescendants([MessageType.invoke_request] as any);
-            ((<any>c_rv)._messageListener as EventSpace).cancelDescendants([MessageType.invoke_request] as any);
+            ((<any>s_rv)._messageListener as EventSpace<any>).get([MessageType.invoke_request] as any).offDescendants();
+            ((<any>c_rv)._messageListener as EventSpace<any>).get([MessageType.invoke_request] as any).offDescendants();
         });
 
         it('测试接收到不属于自己的消息', function (done) {
@@ -605,24 +605,24 @@ describe('测试remote-invoke', function () {
 
                 //测试在执行完上面的操作后，_messageListener中对应类型的监听器是否为空
                 setTimeout(() => {  //等待1秒，确保所有发送的消息都被收到了
-                    const s_es = ((<any>s_rv)._messageListener as EventSpace);
-                    const c_es = ((<any>c_rv)._messageListener as EventSpace);
+                    const s_es = ((<any>s_rv)._messageListener as EventSpace<any>);
+                    const c_es = ((<any>c_rv)._messageListener as EventSpace<any>);
 
-                    expect(s_es.hasDescendants([MessageType.invoke_response] as any)).to.not.be.ok();
-                    expect(s_es.hasDescendants([MessageType.invoke_finish] as any)).to.not.be.ok();
-                    expect(s_es.hasDescendants([MessageType.invoke_failed] as any)).to.not.be.ok();
-                    expect(s_es.hasDescendants([MessageType.invoke_file_request] as any)).to.not.be.ok();
-                    expect(s_es.hasDescendants([MessageType.invoke_file_response] as any)).to.not.be.ok();
-                    expect(s_es.hasDescendants([MessageType.invoke_file_finish] as any)).to.not.be.ok();
-                    expect(s_es.hasDescendants([MessageType.invoke_file_failed] as any)).to.not.be.ok();
+                    expect(s_es.get([MessageType.invoke_response] as any).hasDescendants()).to.not.be.ok();
+                    expect(s_es.get([MessageType.invoke_finish] as any).hasDescendants()).to.not.be.ok();
+                    expect(s_es.get([MessageType.invoke_failed] as any).hasDescendants()).to.not.be.ok();
+                    expect(s_es.get([MessageType.invoke_file_request] as any).hasDescendants()).to.not.be.ok();
+                    expect(s_es.get([MessageType.invoke_file_response] as any).hasDescendants()).to.not.be.ok();
+                    expect(s_es.get([MessageType.invoke_file_finish] as any).hasDescendants()).to.not.be.ok();
+                    expect(s_es.get([MessageType.invoke_file_failed] as any).hasDescendants()).to.not.be.ok();
 
-                    expect(c_es.hasDescendants([MessageType.invoke_response] as any)).to.not.be.ok();
-                    expect(c_es.hasDescendants([MessageType.invoke_finish] as any)).to.not.be.ok();
-                    expect(c_es.hasDescendants([MessageType.invoke_failed] as any)).to.not.be.ok();
-                    expect(c_es.hasDescendants([MessageType.invoke_file_request] as any)).to.not.be.ok();
-                    expect(c_es.hasDescendants([MessageType.invoke_file_response] as any)).to.not.be.ok();
-                    expect(c_es.hasDescendants([MessageType.invoke_file_finish] as any)).to.not.be.ok();
-                    expect(c_es.hasDescendants([MessageType.invoke_file_failed] as any)).to.not.be.ok();
+                    expect(c_es.get([MessageType.invoke_response] as any).hasDescendants()).to.not.be.ok();
+                    expect(c_es.get([MessageType.invoke_finish] as any).hasDescendants()).to.not.be.ok();
+                    expect(c_es.get([MessageType.invoke_failed] as any).hasDescendants()).to.not.be.ok();
+                    expect(c_es.get([MessageType.invoke_file_request] as any).hasDescendants()).to.not.be.ok();
+                    expect(c_es.get([MessageType.invoke_file_response] as any).hasDescendants()).to.not.be.ok();
+                    expect(c_es.get([MessageType.invoke_file_finish] as any).hasDescendants()).to.not.be.ok();
+                    expect(c_es.get([MessageType.invoke_file_failed] as any).hasDescendants()).to.not.be.ok();
 
                     done();
                 }, 1000);
@@ -662,20 +662,20 @@ describe('测试remote-invoke', function () {
                     c_rv.cancelReceive('server', 'test.a');
 
                     setTimeout(() => {
-                        const s_es = (<any>s_rv)._messageListener as EventSpace;
-                        const c_es = (<any>c_rv)._messageListener as EventSpace;
+                        const s_es = (<any>s_rv)._messageListener as EventSpace<any>;
+                        const c_es = (<any>c_rv)._messageListener as EventSpace<any>;
 
-                        expect(s_es.hasDescendants([MessageType.broadcast] as any)).to.not.be.ok();
-                        expect(s_es.hasDescendants([MessageType.broadcast_close] as any)).to.not.be.ok();
-                        expect(s_es.hasDescendants([MessageType.broadcast_open] as any)).to.not.be.ok();
-                        expect(s_es.hasDescendants([MessageType.broadcast_open_finish] as any)).to.not.be.ok();
-                        expect(s_es.hasDescendants([MessageType._broadcast_white_list] as any)).to.not.be.ok();
+                        expect(s_es.get([MessageType.broadcast] as any).hasDescendants()).to.not.be.ok();
+                        expect(s_es.get([MessageType.broadcast_close] as any).hasDescendants()).to.not.be.ok();
+                        expect(s_es.get([MessageType.broadcast_open] as any).hasDescendants()).to.not.be.ok();
+                        expect(s_es.get([MessageType.broadcast_open_finish] as any).hasDescendants()).to.not.be.ok();
+                        expect(s_es.get([MessageType._broadcast_white_list] as any).forEachDescendants(layer => layer.data, true)).to.not.be.ok();
 
-                        expect(c_es.hasDescendants([MessageType.broadcast] as any)).to.not.be.ok();
-                        expect(c_es.hasDescendants([MessageType.broadcast_close] as any)).to.not.be.ok();
-                        expect(c_es.hasDescendants([MessageType.broadcast_open] as any)).to.not.be.ok();
-                        expect(c_es.hasDescendants([MessageType.broadcast_open_finish] as any)).to.not.be.ok();
-                        expect(c_es.hasDescendants([MessageType._broadcast_white_list] as any)).to.not.be.ok();
+                        expect(c_es.get([MessageType.broadcast] as any).hasDescendants()).to.not.be.ok();
+                        expect(c_es.get([MessageType.broadcast_close] as any).hasDescendants()).to.not.be.ok();
+                        expect(c_es.get([MessageType.broadcast_open] as any).hasDescendants()).to.not.be.ok();
+                        expect(c_es.get([MessageType.broadcast_open_finish] as any).hasDescendants()).to.not.be.ok();
+                        expect(c_es.get([MessageType._broadcast_white_list] as any).forEachDescendants(layer => layer.data, true)).to.not.be.ok();
 
                         done();
                     }, 1000);
@@ -701,14 +701,14 @@ describe('测试remote-invoke', function () {
             setTimeout(() => {
                 (<any>s_rv)._socket.onClose();  //模拟网络断开
 
-                const s_es = (<any>s_rv)._messageListener as EventSpace;
-                expect(s_es.hasDescendants([MessageType._broadcast_white_list] as any)).to.not.be.ok();
+                const s_es = (<any>s_rv)._messageListener as EventSpace<any>;
+                expect(s_es.get([MessageType._broadcast_white_list] as any).forEachDescendants(layer => layer.data, true)).to.not.be.ok();
 
                 done();
             }, 1000);
         });
 
-        it.only('测试网络重连后，向方发送注册过的广播path', function (done) {
+        it('测试网络重连后，向方发送注册过的广播path', function (done) {
             //注意观察发送的消息
 
             this.timeout(20 * 1000);
@@ -725,11 +725,11 @@ describe('测试remote-invoke', function () {
                 console.log('重发');
                 (<any>c_rv)._socket.onOpen();   //模拟网络重连
 
-                const s_es = (<any>s_rv)._messageListener as EventSpace;
-                expect(s_es.hasDescendants([MessageType._broadcast_white_list] as any)).to.not.be.ok();
+                const s_es = (<any>s_rv)._messageListener as EventSpace<any>;
+                expect(s_es.get([MessageType._broadcast_white_list] as any).forEachDescendants(layer => layer.data, true)).to.not.be.ok();
 
                 setTimeout(() => {
-                    expect(s_es.hasDescendants([MessageType._broadcast_white_list] as any)).to.be.ok();
+                    expect(s_es.get([MessageType._broadcast_white_list] as any).forEachDescendants(layer => layer.data, true)).to.be.ok();
                     done();
                 }, 1000);
             }, 1000);
