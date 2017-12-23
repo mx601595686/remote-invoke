@@ -4,8 +4,10 @@ import { Server, ServerSocket } from 'binary-ws';
 import EventSpace from 'eventspace';
 
 import { RemoteInvoke, MessageType } from '../src';
-import { BinaryWS_socket } from './BinaryWS_socket';
+import { MessageRouting } from '../src/classes/MessageRouting';
 import { BroadcastMessage } from '../src/classes/MessageData';
+
+import { BinaryWS_socket } from './BinaryWS_socket';
 
 //注意：测试需要8080端口，请确保不会被占用
 describe('测试remote-invoke', function () {
@@ -24,6 +26,7 @@ describe('测试remote-invoke', function () {
         server.once('listening', () => {
             server.once('connection', (socket) => {
                 s_socket = socket;
+
                 s_socket.on('error', (err) => console.error('测试服务器端接口错误：', err));
                 c_socket.on('error', (err) => console.error('测试客户端端接口错误：', err));
 
@@ -33,8 +36,8 @@ describe('测试remote-invoke', function () {
                 s_rv.printMessage = true;
                 c_rv.printMessage = true;
 
-                (s_rv.timeout as any) = 5 * 1000; //修改为5秒过期超时
-                (c_rv.timeout as any) = 5 * 1000;
+                (RemoteInvoke.timeout as any) = 5 * 1000;   //修改为5秒过期超时
+                (MessageRouting.timeout as any) = 5 * 1000; //修改为5秒过期超时
 
                 done();
             });

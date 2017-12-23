@@ -31,7 +31,7 @@ export class BinaryWS_socket implements ConnectionSocket {
         const result = this._socket.send(header, body);
         const timer = setTimeout(() => {
             this._socket.cancel(result.messageID)
-        }, this.ri.timeout);
+        }, RemoteInvoke.timeout);
 
         return result
             .then(() => clearTimeout(timer))

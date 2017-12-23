@@ -67,8 +67,8 @@ export class InvokeRequestMessage extends MessageData {
 
     pack(): [string, Buffer] {
         return [
-            JSON.stringify([this.type, this.sender, this.receiver, this.path]),
-            Buffer.from(JSON.stringify([this.requestMessageID, this.data, this.files.map(item => [item.id, item.size, item.splitNumber, item.name])]))
+            JSON.stringify([this.type, this.sender, this.receiver, this.path, this.requestMessageID]),
+            Buffer.from(JSON.stringify([this.data, this.files.map(item => [item.id, item.size, item.splitNumber, item.name])]))
         ];
     }
 
@@ -77,17 +77,17 @@ export class InvokeRequestMessage extends MessageData {
         irm.sender = header[1];
         irm.receiver = header[2];
         irm.path = header[3];
+        irm.requestMessageID = header[4];
 
         if (irm.receiver !== mr.moduleName)
             throw new Error(`收到了不属于自己的消息。sender：${irm.sender} ，receiver：${irm.receiver}`);
 
-        if (irm.path.length > mr.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
+        if (irm.path.length > MessageRouting.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${MessageRouting.pathMaxLength}个字符`);
 
         const p_body = JSON.parse(body.toString());
-        irm.requestMessageID = p_body[0];
-        irm.data = p_body[1];
-        irm.files = p_body[2].map((item: any) => {
+        irm.data = p_body[0];
+        irm.files = p_body[1].map((item: any) => {
             //确保size与splitNumber的数据类型
             if ((Number.isSafeInteger(item[1]) && item[1] >= 0 || item[1] === null) && (Number.isSafeInteger(item[2]) && item[2] >= 0 || item[2] === null))
                 return { id: item[0], size: item[1], splitNumber: item[2], name: item[3] };
@@ -99,8 +99,8 @@ export class InvokeRequestMessage extends MessageData {
     }
 
     static create(mr: MessageRouting, messageID: number, receiver: string, path: string, data: InvokeSendingData) {
-        if (path.length > mr.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
+        if (path.length > MessageRouting.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${MessageRouting.pathMaxLength}个字符`);
 
         const irm = new InvokeRequestMessage();
 
@@ -111,7 +111,7 @@ export class InvokeRequestMessage extends MessageData {
         irm.data = data.data;
         irm.files = data.files == null ? [] : data.files.map((item, index) =>
             Buffer.isBuffer(item.file) ?
-                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / mr.filePieceSize), name: item.name, _data: item } :
+                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / MessageRouting.filePieceSize), name: item.name, _data: item } :
                 { id: index, size: null, splitNumber: null, name: item.name, _data: item }
         );
 
@@ -169,7 +169,7 @@ export class InvokeResponseMessage extends MessageData {
         irm.data = data.data;
         irm.files = data.files == null ? [] : data.files.map((item, index) =>
             Buffer.isBuffer(item.file) ?
-                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / mr.filePieceSize), name: item.name, _data: item } :
+                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / MessageRouting.filePieceSize), name: item.name, _data: item } :
                 { id: index, size: null, splitNumber: null, name: item.name, _data: item }
         );
 
@@ -471,8 +471,8 @@ export class BroadcastMessage extends MessageData {
         bm.sender = header[1];
         bm.path = header[3];
 
-        if (bm.path.length > mr.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
+        if (bm.path.length > MessageRouting.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${MessageRouting.pathMaxLength}个字符`);
 
         bm.data = JSON.parse(body.toString());
 
@@ -480,8 +480,8 @@ export class BroadcastMessage extends MessageData {
     }
 
     static create(mr: MessageRouting, path: string, data: any) {
-        if (path.length > mr.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
+        if (path.length > MessageRouting.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${MessageRouting.pathMaxLength}个字符`);
 
         const bm = new BroadcastMessage();
 
@@ -518,15 +518,15 @@ export class BroadcastOpenMessage extends MessageData {
         if (bom.broadcastSender !== mr.moduleName)
             throw new Error(`对方尝试打开不属于自己的广播。对方所期待的广播发送者:${bom.broadcastSender}`);
 
-        if (bom.path.length > mr.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
+        if (bom.path.length > MessageRouting.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${MessageRouting.pathMaxLength}个字符`);
 
         return bom;
     }
 
     static create(mr: MessageRouting, messageID: number, broadcastSender: string, path: string) {
-        if (path.length > mr.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
+        if (path.length > MessageRouting.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${MessageRouting.pathMaxLength}个字符`);
 
         const bom = new BroadcastOpenMessage();
 
@@ -592,15 +592,15 @@ export class BroadcastCloseMessage extends MessageData {
         if (bcm.broadcastSender !== mr.moduleName)
             throw new Error(`对方尝试关闭不属于自己的广播。对方所期待的广播发送者:${bcm.broadcastSender}`);
 
-        if (bcm.path.length > mr.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
+        if (bcm.path.length > MessageRouting.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${MessageRouting.pathMaxLength}个字符`);
 
         return bcm;
     }
 
     static create(mr: MessageRouting, broadcastSender: string, path: string, includeAncestor: boolean = false) {
-        if (path.length > mr.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${mr.pathMaxLength}个字符`);
+        if (path.length > MessageRouting.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${MessageRouting.pathMaxLength}个字符`);
 
         const bcm = new BroadcastCloseMessage();
 

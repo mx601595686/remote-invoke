@@ -26,6 +26,21 @@ import {
 export abstract class MessageRouting {
 
     /**
+     * 请求响应超时，默认3分钟
+     */
+    static readonly timeout = 3 * 60 * 1000;
+
+    /**
+     * 默认文件片段大小 512kb
+     */
+    static readonly filePieceSize = 512 * 1024;
+
+    /**
+     * 消息path的最大长度
+     */
+    static readonly pathMaxLength = 256;
+
+    /**
      * 自增消息编号索引
      */
     private _messageID = 0;
@@ -39,21 +54,6 @@ export abstract class MessageRouting {
      * 注册的各类消息监听器
      */
     protected readonly _messageListener = new EventSpace();
-
-    /**
-     * 请求响应超时，默认3分钟
-     */
-    readonly timeout = 3 * 60 * 1000;
-
-    /**
-     * 默认文件片段大小 512kb
-     */
-    readonly filePieceSize = 512 * 1024;
-
-    /**
-     * 消息path的最大长度
-     */
-    readonly pathMaxLength = 256;
 
     /**
      * 当前模块名称
@@ -210,10 +210,11 @@ export abstract class MessageRouting {
 
         //当端口打开之后立刻通知对方要监听哪些广播
         this._messageListener.get([MessageType._onOpen] as any).on(() => {
-            this._messageListener.get([MessageType.broadcast] as any).children.forEach((layer, broadcastSender) => {
-                layer.forEachDescendants(layer => {
-                    if (layer.has()) this._send_BroadcastOpenMessage(broadcastSender, layer.fullName.join('.'));
-                });
+            this._messageListener.get([MessageType.broadcast] as any).forEachDescendants(layer => {
+                if (layer.has()) {
+                    const name = layer.fullName;
+                    this._send_BroadcastOpenMessage(name[1], layer.fullName.slice(2).join('.'));
+                }
             });
         });
 
@@ -281,7 +282,7 @@ export abstract class MessageRouting {
         }
         const timeout = () => { clean(); onTimeout(); };
 
-        let timer = setTimeout(timeout, this.timeout);
+        let timer = setTimeout(timeout, MessageRouting.timeout);
 
         msg.files.forEach(item => {
             let sendingData = item._data as SendingFile;
@@ -294,7 +295,7 @@ export abstract class MessageRouting {
 
             this._messageListener.get([MessageType.invoke_file_request, msg.receiver, messageID, item.id] as any).on((msg: InvokeFileRequestMessage) => {
                 clearTimeout(timer);
-                timer = setTimeout(timeout, this.timeout);
+                timer = setTimeout(timeout, MessageRouting.timeout);
 
                 if (msg.index > index) {
                     index = msg.index;
@@ -304,7 +305,7 @@ export abstract class MessageRouting {
 
                 if (Buffer.isBuffer(sendingData.file)) {
                     if (index < (item.splitNumber as number))
-                        this._send_InvokeFileResponseMessage(msg, sendingData.file.slice(index * this.filePieceSize, (index + 1) * this.filePieceSize))
+                        this._send_InvokeFileResponseMessage(msg, sendingData.file.slice(index * MessageRouting.filePieceSize, (index + 1) * MessageRouting.filePieceSize))
                             .then(() => sendingData.onProgress && sendingData.onProgress(undefined, (index + 1) / (item.splitNumber as number)))
                             .catch(err => send_error(msg, err));
                     else
@@ -342,7 +343,7 @@ export abstract class MessageRouting {
     protected _send_InvokeFileRequestMessage(msg: InvokeRequestMessage | InvokeResponseMessage, fileID: number, index: number): Promise<Buffer | void> {
         return new Promise((resolve, reject) => {
             const message = InvokeFileRequestMessage.create(this, msg, fileID, index);
-            const timer = setTimeout(() => { clean(); reject(new Error('请求超时')); }, this.timeout);
+            const timer = setTimeout(() => { clean(); reject(new Error('请求超时')); }, MessageRouting.timeout);
             const clean = () => {
                 clearTimeout(timer);
                 this._messageListener.get([MessageType.invoke_file_response, message.receiver, message.messageID, fileID] as any).off();
@@ -410,7 +411,7 @@ export abstract class MessageRouting {
                     .catch(err => this._printError(`向对方发送"BroadcastOpenMessage -> 通知对方现在要接收指定路径的广播"失败。broadcastSender:${broadcastSender} path:${path}`, err));
             }
 
-            const timer = setInterval(interval, this.timeout);    //到了时间如果还没有收到对方响应就重新发送一次
+            const timer = setInterval(interval, MessageRouting.timeout);    //到了时间如果还没有收到对方响应就重新发送一次
 
             this._messageListener.get([MessageType.broadcast_open_finish, result.messageID] as any).once(() => {
                 clearInterval(timer);

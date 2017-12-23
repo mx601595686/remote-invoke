@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import { EventSpace } from "eventspace/bin/classes/EventSpace";
+import EventSpace from "eventspace";
 import { ConnectionSocket } from "../interfaces/ConnectionSocket";
 import { InvokeSendingData } from "../interfaces/InvokeSendingData";
 import { InvokeRequestMessage, InvokeResponseMessage } from './MessageData';
@@ -7,6 +7,18 @@ import { InvokeRequestMessage, InvokeResponseMessage } from './MessageData';
  * 消息路由中心，负责收发消息
  */
 export declare abstract class MessageRouting {
+    /**
+     * 请求响应超时，默认3分钟
+     */
+    static readonly timeout: number;
+    /**
+     * 默认文件片段大小 512kb
+     */
+    static readonly filePieceSize: number;
+    /**
+     * 消息path的最大长度
+     */
+    static readonly pathMaxLength: number;
     /**
      * 自增消息编号索引
      */
@@ -18,19 +30,7 @@ export declare abstract class MessageRouting {
     /**
      * 注册的各类消息监听器
      */
-    protected readonly _messageListener: EventSpace;
-    /**
-     * 请求响应超时，默认3分钟
-     */
-    readonly timeout: number;
-    /**
-     * 默认文件片段大小 512kb
-     */
-    readonly filePieceSize: number;
-    /**
-     * 消息path的最大长度
-     */
-    readonly pathMaxLength: number;
+    protected readonly _messageListener: EventSpace<{}>;
     /**
      * 当前模块名称
      */

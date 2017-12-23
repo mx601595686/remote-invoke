@@ -4,7 +4,7 @@
 export declare enum MessageType {
     /**
      * 全局：
-     * 1.所有消息发送后，头部都会被打包成一个JSON数组，其顺序确保总是第一项是type，第二项是sender，第三项是receiver，第四项是path。
+     * 1.所有消息发送后，头部都会被打包成一个JSON数组，其顺序确保总是第一项是type，第二项是sender，第三项是receiver，第四项是path，第五项是requestMessageID(这个只有invoke_request才有)。
      * 2.path的最大长度为256个Unicode字符
      */
     /**
@@ -22,10 +22,10 @@ export declare enum MessageType {
      *      sender:string           //调用者
      *      receiver:string         //被调用者
      *      path:string             //调用方法所在的路径
+     *      requestMessageID:number //请求消息编号
      * ]
      * body格式：
      * [
-     *      requestMessageID:number     //请求消息编号
      *      data:any                    //要发送的数据，这个在发送前会被序列化成JSON
      *      files: [                    //消息附带的文件
      *          id:number               //文件编号

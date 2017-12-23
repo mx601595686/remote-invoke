@@ -38,6 +38,6 @@ export interface ConnectionSocket {
     send(header: string, body: Buffer): Promise<void>;
     /**
      * 如果socket支持取消发送，推荐设置一个定时器，超时后就取消发送，例如：
-     * setTimeout(() => { 取消发送() }, this.ri.timeout);
+     * setTimeout(() => { 取消发送() }, RemoteInvoke.timeout);
      */
 }
