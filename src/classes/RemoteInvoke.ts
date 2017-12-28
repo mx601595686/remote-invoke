@@ -231,7 +231,7 @@ export class RemoteInvoke extends MessageRouting {
         });
 
         return {
-            data: { data: msg.data, files },
+            data: { remoteName: msg.sender, data: msg.data, files },
             clean: () => { //清理正在下载的
                 cleaned = true;
                 this._messageListener.get([MessageType.invoke_file_failed, msg.sender, messageID] as any).triggerDescendants({ error: '下载终止' });

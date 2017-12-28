@@ -32,6 +32,10 @@ export interface ReceivingFile {
  */
 export interface InvokeReceivingData {
     /**
+     * 远端模块的名称
+     */
+    readonly remoteName: string;
+    /**
      * 接收到的数据
      */
     data: any;
