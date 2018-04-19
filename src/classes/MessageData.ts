@@ -1,13 +1,16 @@
+import { MessageType } from './../interfaces/MessageType';
 import { SendingFile } from '../interfaces/InvokeSendingData';
-import { MessageType } from '../interfaces/MessageType';
 import { InvokeSendingData } from '../interfaces/InvokeSendingData';
-import { MessageRouting } from './MessageRouting';
+import { RemoteInvoke } from './RemoteInvoke';
 
 /**
  * 所有消息的基类
  */
 export abstract class MessageData {
 
+    /**
+     * 消息的类型
+     */
     abstract type: MessageType;
 
     /**
@@ -16,42 +19,25 @@ export abstract class MessageData {
     abstract pack(): [string, Buffer];
 
     /**
+     * 将数据序列化成字符串，方便打印日志
+     */
+    abstract toString(): string;
+
+    /**
      * 解析消息
-     * @param mr MessageRouting
+     * @param ri RemoteInvoke
      * @param header 已近被JSON.parse后的消息头部
      * @param body 消息body
      */
-    static parse(mr: MessageRouting, header: any[], body: Buffer): MessageData {
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer): MessageData {
         throw new Error('未实现解析方法');
     }
 
     /**
      * 创建消息
      */
-    static create(mr: MessageRouting, ...args: any[]): MessageData {
+    static create(ri: RemoteInvoke, ...args: any[]): MessageData {
         throw new Error('未实现创建方法');
-    }
-
-    /**
-     * 返回序列化后的对象。    
-     * 
-     * 注意：以 "_" 开头的属性或字段都将被忽略
-     */
-    toString() {
-        //过滤或转换要序列化的属性
-        const filter = (key: string, value: any) => {
-            if (key.startsWith('_'))
-                return undefined;
-            else if (key === 'type')    //打印消息类型名称
-                return MessageType[value];
-            else if (value != null && value.type === 'Buffer' && Array.isArray(value.data))
-                //这样写是因为Buffer.isBuffer在JSON.stringify中没用
-                return `<Buffer length=${value.data.length}>`;
-            else
-                return value;
-        };
-
-        return JSON.stringify(this, filter, 4);
     }
 }
 
@@ -72,18 +58,21 @@ export class InvokeRequestMessage extends MessageData {
         ];
     }
 
-    static parse(mr: MessageRouting, header: any[], body: Buffer) {
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+        if (MessageType.invoke_request !== header[0])
+            throw new Error(`要解析的消息类型：${header[0]} 与 InvokeRequestMessage 不匹配`);
+
         const irm = new InvokeRequestMessage();
         irm.sender = header[1];
         irm.receiver = header[2];
         irm.path = header[3];
         irm.requestMessageID = header[4];
 
-        if (irm.receiver !== mr.moduleName)
+        if (irm.receiver !== ri.moduleName)
             throw new Error(`收到了不属于自己的消息。sender：${irm.sender} ，receiver：${irm.receiver}`);
 
-        if (irm.path.length > MessageRouting.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${MessageRouting.pathMaxLength}个字符`);
+        if (irm.path.length > RemoteInvoke.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${RemoteInvoke.pathMaxLength}个字符`);
 
         const p_body = JSON.parse(body.toString());
         irm.data = p_body[0];
@@ -98,24 +87,35 @@ export class InvokeRequestMessage extends MessageData {
         return irm;
     }
 
-    static create(mr: MessageRouting, messageID: number, receiver: string, path: string, data: InvokeSendingData) {
-        if (path.length > MessageRouting.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${MessageRouting.pathMaxLength}个字符`);
+    static create(ri: RemoteInvoke, receiver: string, path: string, data: InvokeSendingData) {
+        if (path.length > RemoteInvoke.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${RemoteInvoke.pathMaxLength}个字符`);
 
         const irm = new InvokeRequestMessage();
 
-        irm.sender = mr.moduleName;
+        irm.sender = ri.moduleName;
         irm.receiver = receiver;
         irm.path = path;
-        irm.requestMessageID = messageID;
+        irm.requestMessageID = (ri as any)._messageID++;
         irm.data = data.data;
         irm.files = data.files == null ? [] : data.files.map((item, index) =>
             Buffer.isBuffer(item.file) ?
-                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / MessageRouting.filePieceSize), name: item.name, _data: item } :
+                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / RemoteInvoke.filePieceSize), name: item.name, _data: item } :
                 { id: index, size: null, splitNumber: null, name: item.name, _data: item }
         );
 
         return irm;
+    }
+
+    toString() {
+        return JSON.stringify(Object.create(this, {
+            type: {
+                value: MessageType[this.type]
+            },
+            files: {
+                value: this.files.map(item => Object.create(item, { _data: { value: undefined } }))
+            }
+        }), undefined, 4);
     }
 }
 
@@ -136,12 +136,15 @@ export class InvokeResponseMessage extends MessageData {
         ];
     }
 
-    static parse(mr: MessageRouting, header: any[], body: Buffer) {
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+        if (MessageType.invoke_response !== header[0])
+            throw new Error(`要解析的消息类型：${header[0]} 与 InvokeResponseMessage 不匹配`);
+
         const irm = new InvokeResponseMessage();
         irm.sender = header[1];
         irm.receiver = header[2];
 
-        if (irm.receiver !== mr.moduleName)
+        if (irm.receiver !== ri.moduleName)
             throw new Error(`收到了不属于自己的消息。sender：${irm.sender} ，receiver：${irm.receiver}`);
 
         const p_body = JSON.parse(body.toString());
@@ -159,21 +162,32 @@ export class InvokeResponseMessage extends MessageData {
         return irm;
     }
 
-    static create(mr: MessageRouting, rm: InvokeRequestMessage, messageID: number, data: InvokeSendingData) {
+    static create(ri: RemoteInvoke, rm: InvokeRequestMessage, data: InvokeSendingData) {
         const irm = new InvokeResponseMessage();
 
-        irm.sender = mr.moduleName;
+        irm.sender = ri.moduleName;
         irm.receiver = rm.sender;
         irm.requestMessageID = rm.requestMessageID;
-        irm.responseMessageID = messageID;
+        irm.responseMessageID = (ri as any)._messageID++;
         irm.data = data.data;
         irm.files = data.files == null ? [] : data.files.map((item, index) =>
             Buffer.isBuffer(item.file) ?
-                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / MessageRouting.filePieceSize), name: item.name, _data: item } :
+                { id: index, size: item.file.length, splitNumber: Math.ceil(item.file.length / RemoteInvoke.filePieceSize), name: item.name, _data: item } :
                 { id: index, size: null, splitNumber: null, name: item.name, _data: item }
         );
 
         return irm;
+    }
+
+    toString() {
+        return JSON.stringify(Object.create(this, {
+            type: {
+                value: MessageType[this.type]
+            },
+            files: {
+                value: this.files.map(item => Object.create(item, { _data: { value: undefined } }))
+            }
+        }), undefined, 4);
     }
 }
 
@@ -191,12 +205,15 @@ export class InvokeFinishMessage extends MessageData {
         ];
     }
 
-    static parse(mr: MessageRouting, header: any[], body: Buffer) {
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+        if (MessageType.invoke_finish !== header[0])
+            throw new Error(`要解析的消息类型：${header[0]} 与 InvokeFinishMessage 不匹配`);
+
         const ifm = new InvokeFinishMessage();
         ifm.sender = header[1];
         ifm.receiver = header[2];
 
-        if (ifm.receiver !== mr.moduleName)
+        if (ifm.receiver !== ri.moduleName)
             throw new Error(`收到了不属于自己的消息。sender：${ifm.sender} ，receiver：${ifm.receiver}`);
 
         ifm.responseMessageID = Number.parseInt(body.toString());
@@ -204,14 +221,22 @@ export class InvokeFinishMessage extends MessageData {
         return ifm;
     }
 
-    static create(mr: MessageRouting, rm: InvokeResponseMessage) {
+    static create(ri: RemoteInvoke, rm: InvokeResponseMessage) {
         const ifm = new InvokeFinishMessage();
 
-        ifm.sender = mr.moduleName;
+        ifm.sender = ri.moduleName;
         ifm.receiver = rm.sender;
         ifm.responseMessageID = rm.responseMessageID;
 
         return ifm;
+    }
+
+    toString() {
+        return JSON.stringify(Object.create(this, {
+            type: {
+                value: MessageType[this.type]
+            }
+        }), undefined, 4);
     }
 }
 
@@ -230,12 +255,15 @@ export class InvokeFailedMessage extends MessageData {
         ];
     }
 
-    static parse(mr: MessageRouting, header: any[], body: Buffer) {
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+        if (MessageType.invoke_failed !== header[0])
+            throw new Error(`要解析的消息类型：${header[0]} 与 InvokeFailedMessage 不匹配`);
+
         const ifa = new InvokeFailedMessage();
         ifa.sender = header[1];
         ifa.receiver = header[2];
 
-        if (ifa.receiver !== mr.moduleName)
+        if (ifa.receiver !== ri.moduleName)
             throw new Error(`收到了不属于自己的消息。sender：${ifa.sender} ，receiver：${ifa.receiver}`);
 
         const p_body = JSON.parse(body.toString());
@@ -245,15 +273,23 @@ export class InvokeFailedMessage extends MessageData {
         return ifa;
     }
 
-    static create(mr: MessageRouting, rm: InvokeRequestMessage, err: Error) {
+    static create(ri: RemoteInvoke, rm: InvokeRequestMessage, err: Error) {
         const ifa = new InvokeFailedMessage();
 
-        ifa.sender = mr.moduleName;
+        ifa.sender = ri.moduleName;
         ifa.receiver = rm.sender;
         ifa.requestMessageID = rm.requestMessageID;
         ifa.error = err.message;
 
         return ifa;
+    }
+
+    toString() {
+        return JSON.stringify(Object.create(this, {
+            type: {
+                value: MessageType[this.type]
+            }
+        }), undefined, 4);
     }
 }
 
@@ -273,12 +309,15 @@ export class InvokeFileRequestMessage extends MessageData {
         ];
     }
 
-    static parse(mr: MessageRouting, header: any[], body: Buffer) {
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+        if (MessageType.invoke_file_request !== header[0])
+            throw new Error(`要解析的消息类型：${header[0]} 与 InvokeFileRequestMessage 不匹配`);
+
         const ifr = new InvokeFileRequestMessage();
         ifr.sender = header[1];
         ifr.receiver = header[2];
 
-        if (ifr.receiver !== mr.moduleName)
+        if (ifr.receiver !== ri.moduleName)
             throw new Error(`收到了不属于自己的消息。sender：${ifr.sender} ，receiver：${ifr.receiver}`);
 
         const p_body = JSON.parse(body.toString());
@@ -292,19 +331,27 @@ export class InvokeFileRequestMessage extends MessageData {
         return ifr;
     }
 
-    static create(mr: MessageRouting, rm: InvokeRequestMessage | InvokeResponseMessage, id: number, index: number) {
+    static create(ri: RemoteInvoke, rm: InvokeRequestMessage | InvokeResponseMessage, id: number, index: number) {
         if (!Number.isSafeInteger(index) || index < 0)
             throw new Error('文件片段索引数据类型错误');
 
         const ifr = new InvokeFileRequestMessage();
 
-        ifr.sender = mr.moduleName;
+        ifr.sender = ri.moduleName;
         ifr.receiver = rm.sender;
         ifr.messageID = rm instanceof InvokeRequestMessage ? rm.requestMessageID : rm.responseMessageID;
         ifr.id = id;
         ifr.index = index;
 
         return ifr;
+    }
+
+    toString() {
+        return JSON.stringify(Object.create(this, {
+            type: {
+                value: MessageType[this.type]
+            }
+        }), undefined, 4);
     }
 }
 
@@ -329,12 +376,15 @@ export class InvokeFileResponseMessage extends MessageData {
         ];
     }
 
-    static parse(mr: MessageRouting, header: any[], body: Buffer) {
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+        if (MessageType.invoke_file_response !== header[0])
+            throw new Error(`要解析的消息类型：${header[0]} 与 InvokeFileResponseMessage 不匹配`);
+
         const ifr = new InvokeFileResponseMessage();
         ifr.sender = header[1];
         ifr.receiver = header[2];
 
-        if (ifr.receiver !== mr.moduleName)
+        if (ifr.receiver !== ri.moduleName)
             throw new Error(`收到了不属于自己的消息。sender：${ifr.sender} ，receiver：${ifr.receiver}`);
 
         const b_json_length = body.readUInt32BE(0);
@@ -350,10 +400,10 @@ export class InvokeFileResponseMessage extends MessageData {
         return ifr;
     }
 
-    static create(mr: MessageRouting, rfm: InvokeFileRequestMessage, data: Buffer) {
+    static create(ri: RemoteInvoke, rfm: InvokeFileRequestMessage, data: Buffer) {
         const ifr = new InvokeFileResponseMessage();
 
-        ifr.sender = mr.moduleName;
+        ifr.sender = ri.moduleName;
         ifr.receiver = rfm.sender;
         ifr.messageID = rfm.messageID;
         ifr.id = rfm.id;
@@ -361,6 +411,17 @@ export class InvokeFileResponseMessage extends MessageData {
         ifr.data = data;
 
         return ifr;
+    }
+
+    toString() {
+        return JSON.stringify(Object.create(this, {
+            type: {
+                value: MessageType[this.type]
+            },
+            data: {
+                value: `<Buffer length=${this.data.length}>`
+            }
+        }), undefined, 4);
     }
 }
 
@@ -380,12 +441,15 @@ export class InvokeFileFailedMessage extends MessageData {
         ];
     }
 
-    static parse(mr: MessageRouting, header: any[], body: Buffer) {
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+        if (MessageType.invoke_file_failed !== header[0])
+            throw new Error(`要解析的消息类型：${header[0]} 与 InvokeFileFailedMessage 不匹配`);
+
         const iff = new InvokeFileFailedMessage();
         iff.sender = header[1];
         iff.receiver = header[2];
 
-        if (iff.receiver !== mr.moduleName)
+        if (iff.receiver !== ri.moduleName)
             throw new Error(`收到了不属于自己的消息。sender：${iff.sender} ，receiver：${iff.receiver}`);
 
         const p_body = JSON.parse(body.toString());
@@ -396,16 +460,24 @@ export class InvokeFileFailedMessage extends MessageData {
         return iff;
     }
 
-    static create(mr: MessageRouting, rm: InvokeFileRequestMessage, err: Error) {
+    static create(ri: RemoteInvoke, rm: InvokeFileRequestMessage, err: Error) {
         const iff = new InvokeFileFailedMessage();
 
-        iff.sender = mr.moduleName;
+        iff.sender = ri.moduleName;
         iff.receiver = rm.sender;
         iff.messageID = rm.messageID;
         iff.id = rm.id;
         iff.error = err.message;
 
         return iff;
+    }
+
+    toString() {
+        return JSON.stringify(Object.create(this, {
+            type: {
+                value: MessageType[this.type]
+            }
+        }), undefined, 4);
     }
 }
 
@@ -424,12 +496,15 @@ export class InvokeFileFinishMessage extends MessageData {
         ];
     }
 
-    static parse(mr: MessageRouting, header: any[], body: Buffer) {
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+        if (MessageType.invoke_file_finish !== header[0])
+            throw new Error(`要解析的消息类型：${header[0]} 与 InvokeFileFinishMessage 不匹配`);
+
         const iff = new InvokeFileFinishMessage();
         iff.sender = header[1];
         iff.receiver = header[2];
 
-        if (iff.receiver !== mr.moduleName)
+        if (iff.receiver !== ri.moduleName)
             throw new Error(`收到了不属于自己的消息。sender：${iff.sender} ，receiver：${iff.receiver}`);
 
         const p_body = JSON.parse(body.toString());
@@ -439,15 +514,23 @@ export class InvokeFileFinishMessage extends MessageData {
         return iff;
     }
 
-    static create(mr: MessageRouting, rm: InvokeFileRequestMessage) {
+    static create(ri: RemoteInvoke, rm: InvokeFileRequestMessage) {
         const iff = new InvokeFileFinishMessage();
 
-        iff.sender = mr.moduleName;
+        iff.sender = ri.moduleName;
         iff.receiver = rm.sender;
         iff.messageID = rm.messageID;
         iff.id = rm.id;
 
         return iff;
+    }
+
+    toString() {
+        return JSON.stringify(Object.create(this, {
+            type: {
+                value: MessageType[this.type]
+            }
+        }), undefined, 4);
     }
 }
 
@@ -465,31 +548,42 @@ export class BroadcastMessage extends MessageData {
         ];
     }
 
-    static parse(mr: MessageRouting, header: any[], body: Buffer) {
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+        if (MessageType.broadcast !== header[0])
+            throw new Error(`要解析的消息类型：${header[0]} 与 BroadcastMessage 不匹配`);
+
         const bm = new BroadcastMessage();
 
         bm.sender = header[1];
         bm.path = header[3];
 
-        if (bm.path.length > MessageRouting.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${MessageRouting.pathMaxLength}个字符`);
+        if (bm.path.length > RemoteInvoke.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${RemoteInvoke.pathMaxLength}个字符`);
 
         bm.data = JSON.parse(body.toString());
 
         return bm;
     }
 
-    static create(mr: MessageRouting, path: string, data: any) {
-        if (path.length > MessageRouting.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${MessageRouting.pathMaxLength}个字符`);
+    static create(ri: RemoteInvoke, path: string, data: any) {
+        if (path.length > RemoteInvoke.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${RemoteInvoke.pathMaxLength}个字符`);
 
         const bm = new BroadcastMessage();
 
-        bm.sender = mr.moduleName;
+        bm.sender = ri.moduleName;
         bm.path = path;
         bm.data = data;
 
         return bm;
+    }
+
+    toString() {
+        return JSON.stringify(Object.create(this, {
+            type: {
+                value: MessageType[this.type]
+            }
+        }), undefined, 4);
     }
 }
 
@@ -507,7 +601,10 @@ export class BroadcastOpenMessage extends MessageData {
         ];
     }
 
-    static parse(mr: MessageRouting, header: any[], body: Buffer) {
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+        if (MessageType.broadcast_open !== header[0])
+            throw new Error(`要解析的消息类型：${header[0]} 与 BroadcastOpenMessage 不匹配`);
+
         const bom = new BroadcastOpenMessage();
 
         const p_body = JSON.parse(body.toString());
@@ -515,26 +612,34 @@ export class BroadcastOpenMessage extends MessageData {
         bom.broadcastSender = p_body[1];
         bom.path = p_body[2];
 
-        if (bom.broadcastSender !== mr.moduleName)
+        if (bom.broadcastSender !== ri.moduleName)
             throw new Error(`对方尝试打开不属于自己的广播。对方所期待的广播发送者:${bom.broadcastSender}`);
 
-        if (bom.path.length > MessageRouting.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${MessageRouting.pathMaxLength}个字符`);
+        if (bom.path.length > RemoteInvoke.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${RemoteInvoke.pathMaxLength}个字符`);
 
         return bom;
     }
 
-    static create(mr: MessageRouting, messageID: number, broadcastSender: string, path: string) {
-        if (path.length > MessageRouting.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${MessageRouting.pathMaxLength}个字符`);
+    static create(ri: RemoteInvoke, broadcastSender: string, path: string) {
+        if (path.length > RemoteInvoke.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${RemoteInvoke.pathMaxLength}个字符`);
 
         const bom = new BroadcastOpenMessage();
 
-        bom.messageID = messageID;
+        bom.messageID = (ri as any)._messageID++;
         bom.broadcastSender = broadcastSender;
         bom.path = path;
 
         return bom;
+    }
+
+    toString() {
+        return JSON.stringify(Object.create(this, {
+            type: {
+                value: MessageType[this.type]
+            }
+        }), undefined, 4);
     }
 }
 
@@ -550,7 +655,10 @@ export class BroadcastOpenFinishMessage extends MessageData {
         ];
     }
 
-    static parse(mr: MessageRouting, header: any[], body: Buffer) {
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+        if (MessageType.broadcast_open_finish !== header[0])
+            throw new Error(`要解析的消息类型：${header[0]} 与 BroadcastOpenFinishMessage 不匹配`);
+
         const bof = new BroadcastOpenFinishMessage();
 
         bof.messageID = Number.parseInt(body.toString());
@@ -558,12 +666,20 @@ export class BroadcastOpenFinishMessage extends MessageData {
         return bof;
     }
 
-    static create(mr: MessageRouting, bom: BroadcastOpenMessage) {
+    static create(ri: RemoteInvoke, bom: BroadcastOpenMessage) {
         const bof = new BroadcastOpenFinishMessage();
 
         bof.messageID = bom.messageID;
 
         return bof;
+    }
+
+    toString() {
+        return JSON.stringify(Object.create(this, {
+            type: {
+                value: MessageType[this.type]
+            }
+        }), undefined, 4);
     }
 }
 
@@ -572,7 +688,7 @@ export class BroadcastCloseMessage extends MessageData {
     type = MessageType.broadcast_close;
     broadcastSender: string;   //广播的发送者  
     path: string;              //广播的路径
-    includeAncestor: boolean;  //是否需要一并关闭所有父级监听器
+    includeAncestor: boolean;  //是否需要一并关闭所有在对方注册的父级监听器
 
     pack(): [string, Buffer] {
         return [
@@ -581,7 +697,10 @@ export class BroadcastCloseMessage extends MessageData {
         ];
     }
 
-    static parse(mr: MessageRouting, header: any[], body: Buffer) {
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+        if (MessageType.broadcast_close !== header[0])
+            throw new Error(`要解析的消息类型：${header[0]} 与 BroadcastCloseMessage 不匹配`);
+
         const bcm = new BroadcastCloseMessage();
 
         const p_body = JSON.parse(body.toString());
@@ -589,18 +708,18 @@ export class BroadcastCloseMessage extends MessageData {
         bcm.path = p_body[1];
         bcm.includeAncestor = p_body[2];
 
-        if (bcm.broadcastSender !== mr.moduleName)
+        if (bcm.broadcastSender !== ri.moduleName)
             throw new Error(`对方尝试关闭不属于自己的广播。对方所期待的广播发送者:${bcm.broadcastSender}`);
 
-        if (bcm.path.length > MessageRouting.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${MessageRouting.pathMaxLength}个字符`);
+        if (bcm.path.length > RemoteInvoke.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${RemoteInvoke.pathMaxLength}个字符`);
 
         return bcm;
     }
 
-    static create(mr: MessageRouting, broadcastSender: string, path: string, includeAncestor: boolean = false) {
-        if (path.length > MessageRouting.pathMaxLength)
-            throw new Error(`消息的path长度超出了规定的${MessageRouting.pathMaxLength}个字符`);
+    static create(ri: RemoteInvoke, broadcastSender: string, path: string, includeAncestor: boolean = false) {
+        if (path.length > RemoteInvoke.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${RemoteInvoke.pathMaxLength}个字符`);
 
         const bcm = new BroadcastCloseMessage();
 
@@ -609,5 +728,71 @@ export class BroadcastCloseMessage extends MessageData {
         bcm.includeAncestor = includeAncestor;
 
         return bcm;
+    }
+
+    toString() {
+        return JSON.stringify(Object.create(this, {
+            type: {
+                value: MessageType[this.type]
+            }
+        }), undefined, 4);
+    }
+}
+
+export class ChannelMessage extends MessageData {
+
+    type = MessageType.channel;
+    sender: string;             //消息发送者  
+    receiver: string;           //消息接收者
+    path: string;               //通信频道的名称
+    data: any;                  //要发送的数据
+
+    pack(): [string, Buffer] {
+        return [
+            JSON.stringify([this.type, this.sender, this.receiver, this.path]),
+            Buffer.from(JSON.stringify(this.data))
+        ];
+    }
+
+    static parse(ri: RemoteInvoke, header: any[], body: Buffer) {
+        if (MessageType.channel !== header[0])
+            throw new Error(`要解析的消息类型：${header[0]} 与 ChannelMessage 不匹配`);
+
+        const cm = new ChannelMessage();
+        cm.sender = header[1];
+        cm.receiver = header[2];
+        cm.path = header[3];
+
+        if (cm.receiver !== ri.moduleName)
+            throw new Error(`收到了不属于自己的消息。sender：${cm.sender} ，receiver：${cm.receiver}`);
+
+        if (cm.path.length > RemoteInvoke.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${RemoteInvoke.pathMaxLength}个字符`);
+
+        cm.data = JSON.parse(body.toString());
+
+        return cm;
+    }
+
+    static create(ri: RemoteInvoke, receiver: string, path: string, data: any) {
+        if (path.length > RemoteInvoke.pathMaxLength)
+            throw new Error(`消息的path长度超出了规定的${RemoteInvoke.pathMaxLength}个字符`);
+
+        const cm = new ChannelMessage();
+
+        cm.sender = ri.moduleName;
+        cm.receiver = receiver;
+        cm.path = path;
+        cm.data = data;
+
+        return cm;
+    }
+
+    toString() {
+        return JSON.stringify(Object.create(this, {
+            type: {
+                value: MessageType[this.type]
+            }
+        }), undefined, 4);
     }
 }

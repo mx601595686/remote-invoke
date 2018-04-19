@@ -16,12 +16,12 @@ export interface ConnectionSocket {
     onMessage: (header: string, body: Buffer) => void;
 
     /**
-     * 由remote-invoke注册的网络连接打开回调
+     * 由remote-invoke注册的网络连接打开回调函数
      */
     onOpen: () => void;
 
     /**
-     * 由remote-invoke注册的网络连接断开回调。    
+     * 由remote-invoke注册的网络连接断开回调函数 
      */
     onClose: () => void;
 

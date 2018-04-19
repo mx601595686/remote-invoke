@@ -9,7 +9,8 @@ export enum MessageType {
      */
 
     /**
-     * invoke：     
+     * invoke：调用对方暴露出的方法     
+     * 
      * 1.invoke对path的格式没有要求，但推荐使用`/`来划分层级，最后一个为方法名，前面的称为命名空间，这样做是为了便于权限控制。
      *   例如"namespace/functionName"
      * 2.一个path上只允许导出一个方法。如果重复导出则后面的应该覆盖掉前面的。
@@ -29,7 +30,7 @@ export enum MessageType {
      * body格式：       
      * [       
      *      data:any                    //要发送的数据，这个在发送前会被序列化成JSON       
-     *      files: [                    //消息附带的文件       
+     *      files:[                     //消息附带的文件       
      *          id:number               //文件编号    
      *          size:number|null        //文件大小(byte)。如果文件大小不确定则为null    
      *          splitNumber:number|null //文件被分割成了多少块(范围是0 <= X < end)。如果文件大小不确定则为null   
@@ -37,7 +38,7 @@ export enum MessageType {
      *      ][]    
      * ]       
      * 
-     * 当把invoke_request发送出去之后(不管消息现在是在缓冲队列中还是真的已经发出去了)，调用者就开始倒计时，时长为3分钟，超过3分钟就判定请求超时。
+     * 当把invoke_request发送出去之后，调用者就开始倒计时，时长为3分钟，超过3分钟就判定请求超时。
      * 如果中途收到了被调用者传回的invoke_file_request请求，那么就重置倒计时，这一过程直到收到被调用者传回的invoke_response或invoke_failed为止。
      * 
      * 注意：如果调用者调用的方法不存在，被调用者要向调用者报错
@@ -61,7 +62,7 @@ export enum MessageType {
      *      files:[id:number, size:number|null, splitNumber:number|null, name:string][]    //反馈消息附带的文件       
      * ]       
      * 
-     * 如果返回的结果中包含文件，那么当把invoke_response发送出去之后(不管消息现在是在缓冲队列中还是真的已经发出去了)，被调用者就开始倒计时，时长为3分钟，超过3分钟就直接结束响应，清理资源。
+     * 如果返回的结果中包含文件，那么当把invoke_response发送出去之后，被调用者就开始倒计时，时长为3分钟，超过3分钟就直接结束响应，清理资源。
      * 如果中途收到了调用者传回的invoke_file_request请求，那么就重置倒计时。这一过程直到收到调用者传回的invoke_finish为止。
      */
     invoke_response,
@@ -120,7 +121,7 @@ export enum MessageType {
      *      index:number        //文件片段索引。注意：之前请求过的片段不允许重复请求，请求的索引编号应当一次比一次大，否则会被当成传输错误。    
      * ]     
      * 
-     * 当把invoke_file_request发送出去之后(不管消息现在是在缓冲队列中还是真的已经发出去了)，发送者就开始倒计时，时长为3分钟，超过3分钟就判定请求超时。
+     * 当把invoke_file_request发送出去之后，发送者就开始倒计时，时长为3分钟，超过3分钟就判定请求超时。
      * 这一过程直到收到接收者传回的invoke_file_response或invoke_file_failed或invoke_file_finish为止。    
      * 
      * 注意：文件的接收者应当验证     
@@ -190,7 +191,7 @@ export enum MessageType {
     invoke_file_finish,
 
     /**
-     * broadcast：     
+     * broadcast：对外发送广播     
      * 1.broadcast对path的格式有特殊要求，path通过"."来划分层级，注册在上级的监听器可以收到所有发给其下级的广播。   
      *   例如"namespace.a.b", 注册在"namespace.a"上的监听器不仅可以收到path为"namespace.a"的广播，还可以收到path为"namespace.a.b"的广播。
      *   同理，注册在"namespace"上的监听器可以收到"namespace"、"namespace.a"、"namespace.a.b"。
@@ -213,7 +214,7 @@ export enum MessageType {
     broadcast,
 
     /**
-     * 告知websocket的另一端，现在某一路径上的广播有人在监听了
+     * 告知socket的另一端，现在某一路径上的广播有人在监听了
      * 
      * 头部格式：       
      * [       
@@ -251,7 +252,7 @@ export enum MessageType {
     broadcast_open_finish,
 
     /**
-     * 告知websocket的另一端，现在某一路径上的广播已经没有人监听了
+     * 告知socket的另一端，现在某一路径上的广播已经没有人监听了
      * 
      * 头部格式：       
      * [       
@@ -261,7 +262,7 @@ export enum MessageType {
      * [       
      *      broadcastSender:string    //广播的发送者      
      *      path:string               //广播的路径         
-     *      includeAncestor           //是否把path的所有父级监听器也一并取消了，默认false。这个主要用于，当收到了一个自己没有注册过的广播，需要告知发送者以后不要再发送该广播以及其父级的所有广播。  
+     *      includeAncestor           //是否把所有在对方注册的父级监听器也一并取消了，默认false。这个主要用于，当收到了一个自己没有注册过的广播，需要告知发送者以后不要再发送该广播以及其父级的所有广播。  
      * ]     
      * 
      * 在下面两种情况下才需要发送该消息
@@ -272,20 +273,29 @@ export enum MessageType {
      */
     broadcast_close,
 
-    /* -----------------------------------下面是一些在程序内部使用的消息，不在网络上进行传输------------------------------------ */
+    /**
+     * channel：
+     * 两个终端进行直连的通道，这个和"socket.io"的功能一样，两个终端可以进行双向通信，同时还可以划分出多个频道，避免业务之间的相互干扰。
+     * 
+     * 注意：
+     * 1.在使用频道向对方发送消息之前，需要确保对方在相应的频道上已经展开了监听，避免消息丢失的情况
+     * 2.由于网络等原因，可能会出现对方收到消息的顺序与消息发送的顺序不一致的情况。
+     */
 
     /**
-     * ConnectionSocket连接打开
+     * 在指定的频道上向对方发送消息
+     * 
+     * 头部格式：       
+     * [       
+     *      type = channel    //消息类型       
+     *      sender:string     //发送者       
+     *      receiver:string   //接收者   
+     *      path:string       //通信频道的名称    	 
+     * ]       
+     * body格式：       
+     * [        
+     *      data:any          //要发送的数据，data在发送前会被序列化成JSON 
+     * ]   
      */
-    _onOpen,
-
-    /**
-     * ConnectionSocket连接断开
-     */
-    _onClose,
-
-    /**
-     * 划出一块事件空间,记录对方正在对哪些路径的广播展开监听
-     */
-    _broadcast_white_list
+    channel
 }

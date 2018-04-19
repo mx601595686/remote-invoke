@@ -26,14 +26,14 @@
         "@types/expect.js": "^0.3.29",
         "@types/mocha": "^2.2.40",
         "@types/node": "^7.0.13",
+        "binary-ws": "^1.1.2",
         "expect.js": "^0.3.1",
         "gulp": "^3.9.1",
         "gulp-sourcemaps": "^2.4.1",
         "gulp-typescript": "^3.1.5",
         "mocha": "^3.2.0",
         "ts-node": "^3.0.4",
-        "typescript": "^2.5.2",
-        "binary-ws": "^1.1.2"
+        "typescript": "^2.8.1"
     },
     "dependencies": {
         "eventspace": "^3.0.1",
